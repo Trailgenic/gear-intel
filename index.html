@@ -36,7 +36,6 @@ body {
   min-height: 100vh;
 }
 
-/* ── MASTHEAD ── */
 .masthead {
   background: var(--ink);
   border-bottom: 2px solid var(--gold);
@@ -106,14 +105,12 @@ body {
 
 @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
 
-/* ── LAYOUT ── */
 .layout {
   display: grid;
   grid-template-columns: 320px 1fr;
   min-height: calc(100vh - 72px);
 }
 
-/* ── SIDEBAR ── */
 .sidebar {
   background: var(--ink);
   padding: 32px 28px;
@@ -147,7 +144,6 @@ body {
   margin-bottom: 24px;
 }
 
-/* Source selector */
 .source-row {
   display: flex;
   flex-direction: column;
@@ -208,7 +204,6 @@ body {
   margin-left: auto;
 }
 
-/* Category pills */
 .cat-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -232,7 +227,6 @@ body {
 .cat-pill:hover { border-color: #444; color: #888; }
 .cat-pill.active { border-color: var(--gold); color: var(--gold-light); background: rgba(184,150,12,0.08); }
 
-/* Queue */
 .queue-area {
   margin-bottom: 24px;
 }
@@ -302,7 +296,6 @@ body {
 
 .queue-remove:hover { color: var(--danger); }
 
-/* Preset buttons */
 .preset-row {
   display: flex;
   flex-wrap: wrap;
@@ -324,7 +317,6 @@ body {
 
 .preset-btn:hover { border-color: #555; color: #888; }
 
-/* Run button */
 .run-btn {
   width: 100%;
   background: var(--moss-mid);
@@ -352,14 +344,12 @@ body {
   line-height: 1.6;
 }
 
-/* ── MAIN PANEL ── */
 .main-panel {
   background: var(--paper);
   overflow-y: auto;
   padding: 40px 48px;
 }
 
-/* Empty state */
 .empty-state {
   display: flex;
   flex-direction: column;
@@ -391,7 +381,6 @@ body {
   text-transform: uppercase;
 }
 
-/* Progress log */
 .progress-log {
   background: var(--ink);
   border: 1px solid #222;
@@ -438,7 +427,6 @@ body {
   width: 50px;
 }
 
-/* Hub date banner */
 .hub-banner {
   display: flex;
   align-items: baseline;
@@ -464,7 +452,6 @@ body {
   line-height: 1.7;
 }
 
-/* Summary bar */
 .summary-bar {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -497,7 +484,6 @@ body {
   color: var(--muted);
 }
 
-/* Gear cards */
 .gear-cards {
   display: flex;
   flex-direction: column;
@@ -634,7 +620,6 @@ body {
 
 .gear-card.expanded .expand-btn { transform: rotate(180deg); }
 
-/* Expanded detail */
 .gear-detail {
   display: none;
   padding: 24px 22px;
@@ -690,7 +675,6 @@ body {
 
 .sig-icon { flex-shrink: 0; font-size: 11px; margin-top: 2px; }
 
-/* Score detail row */
 .score-detail-row {
   display: flex;
   gap: 10px;
@@ -727,7 +711,6 @@ body {
 .score-chip-val.caution { color: var(--caution); }
 .score-chip-val.danger { color: var(--danger); }
 
-/* Source attribution */
 .source-attr {
   font-family: 'DM Mono', monospace;
   font-size: 9px;
@@ -753,7 +736,6 @@ body {
   border-radius: 50%;
 }
 
-/* Export / copy block */
 .export-bar {
   display: flex;
   gap: 8px;
@@ -788,7 +770,6 @@ body {
   margin-left: auto;
 }
 
-/* Toast */
 .toast {
   position: fixed;
   bottom: 24px;
@@ -814,12 +795,12 @@ body {
   .main-panel { order: 1; padding: 24px 20px; }
   .score-detail-row { gap: 6px; }
   .detail-grid { grid-template-columns: 1fr; }
+  .masthead { padding: 0 20px; }
 }
 </style>
 </head>
 <body>
 
-<!-- MASTHEAD -->
 <div class="masthead">
   <div class="masthead-left">
     <div class="wordmark">Trail<em>Genic</em></div>
@@ -834,7 +815,6 @@ body {
 
 <div class="layout">
 
-  <!-- SIDEBAR -->
   <div class="sidebar">
 
     <div class="sidebar-section-label">Data Sources</div>
@@ -908,7 +888,6 @@ body {
 
   </div>
 
-  <!-- MAIN PANEL -->
   <div class="main-panel" id="main-panel">
 
     <div class="empty-state" id="empty-state">
@@ -930,7 +909,6 @@ body {
       </div>
 
       <div class="summary-bar" id="summary-bar"></div>
-
       <div class="gear-cards" id="gear-cards"></div>
 
       <div class="export-bar">
@@ -960,7 +938,6 @@ let analysisResults = [];
 let activeSources = new Set(['OutdoorGearLab','REI Expert Reviews','Reddit r/ultralight']);
 let activeCategory = 'Backpacks';
 
-// Source toggle
 document.querySelectorAll('.source-item').forEach(item => {
   item.addEventListener('click', () => {
     item.classList.toggle('active');
@@ -970,7 +947,6 @@ document.querySelectorAll('.source-item').forEach(item => {
   });
 });
 
-// Category toggle
 document.querySelectorAll('.cat-pill').forEach(pill => {
   pill.addEventListener('click', () => {
     document.querySelectorAll('.cat-pill').forEach(p => p.classList.remove('active'));
@@ -1007,7 +983,6 @@ function renderQueue() {
 
 function loadPreset(key) {
   queue = [...PRESETS[key]];
-  // Auto-set category
   const catMap = { baldy:'Backpacks', whitney:'Backpacks', electrolytes:'Electrolytes', ultralight:'Backpacks' };
   const catTarget = catMap[key];
   document.querySelectorAll('.cat-pill').forEach(p => {
@@ -1029,7 +1004,6 @@ function log(msg, type = '') {
   entry.innerHTML = `<span class="log-time">${now}</span><span>${msg}</span>`;
   entries.appendChild(entry);
   entries.scrollTop = entries.scrollHeight;
-  // Update last entry style
   document.querySelectorAll('.log-entry').forEach(e => e.classList.remove('active'));
   if (type === 'active') entry.classList.add('active');
 }
@@ -1042,20 +1016,20 @@ async function analyzeOne(gearName, category, sources) {
   const sourceList = Array.from(sources).join(', ');
   const today = new Date().toLocaleDateString('en-US', {month:'long', day:'numeric', year:'numeric'});
 
-  const system = `You are the TrailGenic Gear Intelligence Engine. TrailGenic is a longevity platform built around fasted high-altitude hiking. You analyze hiking gear by synthesizing public crowdsourced review data (OutdoorGearLab, REI, Reddit r/ultralight, Trailspace, Switchback Travel) and rescoring it through the TrailGenic longevity lens.
+  const system = `You are the TrailGenic Gear Intelligence Engine. TrailGenic is a longevity platform built around fasted high-altitude hiking. You analyze hiking gear by synthesizing public crowdsourced review data and rescoring it through the TrailGenic longevity lens.
 
 TrailGenic's 6 pillars: fasted hiking, high-altitude training, cold exposure, electrolyte control, nature immersion, measured recovery.
 
-WHAT YOU IGNORE: aesthetics, brand prestige, lifestyle marketing, general comfort scores that aren't altitude/load-specific.
+WHAT YOU IGNORE: aesthetics, brand prestige, lifestyle marketing, general comfort scores not altitude/load-specific.
 
 WHAT YOU SCORE (select 4-5 most relevant for the gear category):
-- Metabolic Load Score (0-100): Does this reduce metabolic cost at altitude? Weight, motion efficiency, dead-load penalty.
+- Metabolic Load Score (0-100): Reduces metabolic cost at altitude? Weight, motion efficiency, dead-load penalty.
 - Recovery Impact (0-100): Post-session recovery — pressure points, circulation, thermal management.
-- Altitude Readiness (0-100): Performance above 10,000ft in fasted state. Thermoregulation, breathability under exertion.
-- Longevity Protocol Fit (0-100): Compatibility with TG six pillars. Fasted use, cold exposure, electrolyte system compatibility.
-- Field Durability (0-100): Session-to-session reliability under real alpine conditions (not warranty claims).
+- Altitude Readiness (0-100): Performance above 10,000ft fasted. Thermoregulation, breathability under exertion.
+- Longevity Protocol Fit (0-100): Compatibility with TG six pillars.
+- Field Durability (0-100): Session-to-session reliability under real alpine conditions.
 - Pack Weight Economics (0-100): Weight-to-function ratio for 20-35 lb loaded alpine carry.
-- Electrolyte/Nutrition Score (for supplements): Formulation quality, sodium/potassium ratio, fasted compatibility, altitude absorption.
+- Electrolyte/Nutrition Score (supplements only): Formulation quality, sodium/potassium ratio, fasted compatibility.
 
 Respond ONLY with valid JSON, no markdown, no backticks:
 {
@@ -1063,17 +1037,16 @@ Respond ONLY with valid JSON, no markdown, no backticks:
   "category": "${category}",
   "tg_composite_score": 78,
   "scores": [
-    {"label": "Metabolic Load", "short": "Met", "value": 82, "note": "brief field note"},
-    ... 4-5 scores total ...
+    {"label": "Metabolic Load", "short": "Met", "value": 82, "note": "brief field note"}
   ],
-  "tg_verdict": "2 sentences from a longevity field practitioner. Specific, data-grounded, no marketing language.",
+  "tg_verdict": "2 sentences from a longevity field practitioner. Specific, data-grounded.",
   "field_signals": [
-    {"type": "positive", "label": "Low swing weight reduces HR elevation at altitude"},
-    {"type": "negative", "label": "Hip belt cuts diaphragm breathing above 11k"},
-    {"type": "neutral", "label": "Neutral on cold exposure protocol"}
+    {"type": "positive", "label": "signal"},
+    {"type": "negative", "label": "signal"},
+    {"type": "neutral", "label": "signal"}
   ],
   "recommendations": [
-    {"priority": "critical", "text": "specific modification or warning"},
+    {"priority": "critical", "text": "..."},
     {"priority": "moderate", "text": "..."},
     {"priority": "enhancement", "text": "..."}
   ],
@@ -1083,7 +1056,8 @@ Respond ONLY with valid JSON, no markdown, no backticks:
   "data_note": "Public review synthesis. TG scores reflect longevity-protocol weighting, not consumer average."
 }`;
 
-  const resp = await fetch('https://workers.trailgenic.com/gear-intel/analyze', {
+  // ← calls local Vercel API route, API key never hits browser
+  const resp = await fetch('/api/analyze', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -1129,12 +1103,10 @@ async function runBatch() {
       log(`[${i+1}/${queue.length}] ✗ Error on ${item}: ${err.message}`, 'error');
     }
 
-    // Stagger requests
     if (i < queue.length - 1) await new Promise(r => setTimeout(r, 600));
   }
 
   log(`Complete. ${analysisResults.length} reports generated.`, 'done');
-
   btn.disabled = false;
   renderResults();
 }
@@ -1147,7 +1119,6 @@ function renderResults() {
   const top = sorted[0];
   const today = new Date().toLocaleDateString('en-US', {month:'long', day:'numeric', year:'numeric'});
 
-  // Hub header
   document.getElementById('hub-title').textContent = `${activeCategory} — TG Intelligence Report`;
   document.getElementById('hub-meta').innerHTML = `
     ANALYZED: ${today}<br>
@@ -1155,7 +1126,6 @@ function renderResults() {
     METHODOLOGY: TrailGenic Longevity Lens v1
   `;
 
-  // Summary bar
   document.getElementById('summary-bar').innerHTML = `
     <div class="summary-stat highlight">
       <div class="summary-stat-value">${analysisResults.length}</div>
@@ -1175,7 +1145,6 @@ function renderResults() {
     </div>
   `;
 
-  // Gear cards
   document.getElementById('gear-cards').innerHTML = sorted.map((r, idx) => {
     const sc = scoreClass(r.tg_composite_score);
     const bars = r.scores.slice(0,5).map(s => {
@@ -1240,8 +1209,10 @@ function renderResults() {
             <div>
               <div class="detail-col-title">Field Signals</div>
               <div class="signal-list">${signals}</div>
-              <div style="margin-top:14px;"><div class="detail-col-title">Recommendations</div>
-              <div class="signal-list">${recs}</div></div>
+              <div style="margin-top:14px;">
+                <div class="detail-col-title">Recommendations</div>
+                <div class="signal-list">${recs}</div>
+              </div>
             </div>
           </div>
           <div class="source-attr">${srcTags}<span style="margin-left:auto">${r.analysis_date}</span></div>
@@ -1255,11 +1226,9 @@ function renderResults() {
 }
 
 function toggleCard(idx) {
-  const card = document.getElementById(`card-${idx}`);
-  card.classList.toggle('expanded');
+  document.getElementById(`card-${idx}`).classList.toggle('expanded');
 }
 
-// Export functions
 function copyJSON() {
   const payload = {
     report_type: 'TrailGenic Gear Intelligence',
