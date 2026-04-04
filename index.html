@@ -873,6 +873,7 @@ body {
 
     <div class="sidebar-section-label">Presets</div>
     <div class="preset-row" id="preset-row">
+      <button class="preset-btn" onclick="loadPreset('trailgenic')" style="border-color:var(--gold);color:var(--gold-light);">★ TrailGenic Preset</button>
       <button class="preset-btn" onclick="loadPreset('baldy')">Mount Baldy Kit</button>
       <button class="preset-btn" onclick="loadPreset('whitney')">Whitney Day Use</button>
       <button class="preset-btn" onclick="loadPreset('electrolytes')">Electrolytes Top 5</button>
@@ -880,10 +881,11 @@ body {
     </div>
 
     <button class="run-btn" id="run-btn" onclick="runBatch()">▶ Run TG Analysis</button>
+    <button class="run-btn" id="full-run-btn" onclick="runFullDataset()" style="background:#1a1a1a;border:1px solid var(--gold);color:var(--gold-light);margin-top:6px;">⬛ Full Dataset Run — All 8 Categories</button>
     <div class="run-note">
       Sources scraped → TG lens applied<br>
-      Scored & dated at time of analysis<br>
-      Output ready for Gear Hub + MCP dataset
+      Scored &amp; dated at time of analysis<br>
+      Full run: 47 items · ~$0.42 · ~8 min
     </div>
 
   </div>
@@ -915,6 +917,7 @@ body {
         <button class="export-btn primary" onclick="copyJSON()">Copy JSON Dataset</button>
         <button class="export-btn" onclick="copyMarkdown()">Copy Markdown</button>
         <button class="export-btn" onclick="copyMCP()">Copy MCP Schema</button>
+        <button class="export-btn" id="push-mcp-btn" onclick="pushToMCP()" style="border-color:var(--gold);color:var(--gold-light);">↑ Push to MCP KV</button>
         <span class="export-note" id="export-note">Ready for Gear Hub & MCP endpoint</span>
       </div>
 
@@ -927,6 +930,7 @@ body {
 
 <script>
 const PRESETS = {
+  trailgenic: ['Salomon ADV Skin 12 Hydration Vest', 'Salomon Soft Flasks 500ml', 'Arc\'teryx Wind Jacket', 'New Balance Trail Runners', 'Black Diamond Headlamp', 'LMNT Electrolyte Packs'],
   baldy: ['Osprey Stratos 36', 'Salomon X Ultra 4 Mid GTX', 'Black Diamond Distance Carbon Z Poles', 'Patagonia Houdini Jacket'],
   whitney: ['Osprey Talon 22', 'Altra Lone Peak 7', 'Black Diamond Spot 400 Headlamp', 'Smartwool Merino 150 Base Layer'],
   electrolytes: ['LMNT Electrolyte Packets', 'Precision Hydration 1000', 'ReLyte Electrolyte Mix', 'Nuun Sport Tablets', 'SaltStick Fastchews'],
@@ -983,7 +987,7 @@ function renderQueue() {
 
 function loadPreset(key) {
   queue = [...PRESETS[key]];
-  const catMap = { baldy:'Backpacks', whitney:'Backpacks', electrolytes:'Electrolytes', ultralight:'Backpacks' };
+  const catMap = { trailgenic:'Backpacks', baldy:'Backpacks', whitney:'Backpacks', electrolytes:'Electrolytes', ultralight:'Backpacks' };
   const catTarget = catMap[key];
   document.querySelectorAll('.cat-pill').forEach(p => {
     p.classList.toggle('active', p.dataset.cat === catTarget);
@@ -1288,6 +1292,118 @@ function showToast(msg) {
   t.textContent = msg;
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ── FULL DATASET ──────────────────────────────────────────────
+const TG_FULL_DATASET = {
+  'Backpacks':     ['Salomon ADV Skin 12 Hydration Vest','Salomon ADV Skin 5 Hydration Vest','Osprey Talon 22','Osprey Stratos 36','Hyperlite Mountain Gear 3400 Southwest','Gossamer Gear Mariposa 60','Zpacks Arc Haul Ultra 60L','Nathan Pinnacle 12L Race Vest'],
+  'Trail Shoes':   ['New Balance Fresh Foam X Hierro v8','Salomon Sense Ride 5','Altra Lone Peak 8','Hoka Speedgoat 6','Brooks Cascadia 17','La Sportiva Bushido III','Saucony Peregrine 14','Topo Athletic MTN Racer 3'],
+  'Insulation':    ['Arc\'teryx Cerium SL Hoody','Patagonia Micro Puff Hoody','Patagonia Nano Puff Hoody','Outdoor Research Helium Down Hoody','Montbell Plasma 1000 Down Jacket','Western Mountaineering Flash Jacket'],
+  'Trekking Poles':['Black Diamond Distance Carbon Z Poles','Black Diamond Distance FLZ Carbon Poles','Leki Micro Vario Carbon Poles','Gossamer Gear LT5 Carbon Poles','REI Co-op Flash Carbon Trekking Poles'],
+  'Electrolytes':  ['LMNT Electrolyte Packets','ReLyte Electrolyte Mix','Precision Hydration PH 1000','Precision Hydration PH 1500','Nuun Sport Tablets','SaltStick Fastchews'],
+  'Hydration':     ['Salomon Soft Flask 500ml','Salomon Soft Flask 250ml','Hydrapak Softflask 500ml','Platypus SoftBottle 1L','Sawyer Squeeze Water Filter System'],
+  'Shell / Rain':  ['Arc\'teryx Norvan SL Hoody','Arc\'teryx Wind Jacket','Patagonia Houdini Jacket','Outdoor Research Helium Rain Jacket','Black Diamond Liquid Point Shell','Montbell Versalite Rain Jacket'],
+  'Headlamps':     ['Black Diamond Spot 400','Black Diamond Storm 500','Petzl Actik Core','Petzl Swift RL','Fenix HM65R-T']
+};
+
+let fullDatasetResults = {};
+
+async function runFullDataset() {
+  const btn = document.getElementById('full-run-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Running full dataset...';
+
+  document.getElementById('empty-state').style.display = 'none';
+  document.getElementById('report-area').style.display = 'none';
+  const progressLog = document.getElementById('progress-log');
+  progressLog.classList.add('visible');
+  document.getElementById('log-entries').innerHTML = '';
+
+  const categories = Object.keys(TG_FULL_DATASET);
+  const total = Object.values(TG_FULL_DATASET).flat().length;
+  let completed = 0;
+  fullDatasetResults = {};
+  analysisResults = [];
+
+  log(`Full Dataset Run started — ${total} items across ${categories.length} categories`, 'active');
+  log(`Estimated cost: ~$${(total * 0.009).toFixed(2)} · Estimated time: ~${Math.ceil(total * 10 / 60)} min`);
+
+  for (const category of categories) {
+    const items = TG_FULL_DATASET[category];
+    fullDatasetResults[category] = [];
+    log(`── Category: ${category} (${items.length} items) ──`, 'active');
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      log(`[${completed + 1}/${total}] ${item}`, 'active');
+      try {
+        const result = await analyzeOne(item, category, activeSources);
+        fullDatasetResults[category].push(result);
+        analysisResults.push(result);
+        completed++;
+        log(`[${completed}/${total}] ✓ ${result.product_name} — TG: ${result.tg_composite_score}`, 'done');
+      } catch (err) {
+        log(`[${completed + 1}/${total}] ✗ Error: ${err.message}`, 'error');
+        completed++;
+      }
+      if (i < items.length - 1 || category !== categories[categories.length - 1]) {
+        await new Promise(r => setTimeout(r, 700));
+      }
+    }
+  }
+
+  log(`✓ Full dataset complete — ${analysisResults.length}/${total} items scored`, 'done');
+  log(`Ready to push to MCP KV or export JSON`, 'done');
+  btn.disabled = false;
+  btn.textContent = '⬛ Full Dataset Run — All 8 Categories';
+  renderResults();
+  showToast(`Full dataset complete — ${analysisResults.length} items scored`);
+}
+
+async function pushToMCP() {
+  if (!analysisResults.length) { showToast('Run analysis first'); return; }
+
+  const btn = document.getElementById('push-mcp-btn');
+  btn.textContent = '⏳ Pushing...';
+  btn.disabled = true;
+
+  const date = new Date().toISOString().split('T')[0];
+  const payload = {
+    dataset_date: date,
+    category: activeCategory,
+    total_items: analysisResults.length,
+    categories: Object.keys(fullDatasetResults).length ? Object.keys(fullDatasetResults) : [activeCategory],
+    products: analysisResults,
+    schema: {
+      "@context": "https://schema.org",
+      "@type": "Dataset",
+      "name": `TrailGenic Gear Intelligence Dataset — ${date}`,
+      "description": "Gear scored through TrailGenic longevity lens. Fasted high-altitude performance metrics.",
+      "dateCreated": new Date().toISOString(),
+      "creator": { "@type": "Organization", "@id": "https://trailgenic.com/#organization" },
+      "keywords": ["hiking gear", "longevity", "fasted hiking", "altitude", "TrailGenic"]
+    }
+  };
+
+  try {
+    const resp = await fetch('/api/save-dataset', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await resp.json();
+    if (data.success) {
+      showToast(`✓ Pushed to MCP KV — key: gear:dataset:${date}`);
+      document.getElementById('export-note').textContent = `Pushed to MCP KV · gear:dataset:${date}`;
+    } else {
+      showToast('Push failed — check save-dataset endpoint');
+    }
+  } catch (err) {
+    showToast('Push error: ' + err.message);
+  }
+
+  btn.textContent = '↑ Push to MCP KV';
+  btn.disabled = false;
 }
 </script>
 </body>
