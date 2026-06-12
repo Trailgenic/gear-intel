@@ -818,7 +818,7 @@ body {
   <div class="sidebar">
 
     <div class="sidebar-section-label">Data Sources</div>
-    <div class="sidebar-desc" style="color:#555;font-size:12px;margin-bottom:14px;">Public crowdsourced reviews — rescored through TG lens. Dated at time of analysis.</div>
+    <div class="sidebar-desc" style="color:#555;font-size:12px;margin-bottom:14px;">Model synthesis of public review signal — rescored through TG lens. Dated at time of analysis.</div>
 
     <div class="source-row" id="source-list">
       <div class="source-item active" data-source="OutdoorGearLab">
@@ -882,11 +882,7 @@ body {
 
     <button class="run-btn" id="run-btn" onclick="runBatch()">▶ Run TG Analysis</button>
     <button class="run-btn" id="full-run-btn" onclick="runFullDataset()" style="background:#1a1a1a;border:1px solid var(--gold);color:var(--gold-light);margin-top:6px;">⬛ Full Dataset Run — All 8 Categories</button>
-    <div class="run-note">
-      Sources scraped → TG lens applied<br>
-      Scored &amp; dated at time of analysis<br>
-      Full run: 47 items · ~$0.42 · ~8 min
-    </div>
+    <div class="run-note" id="run-note"></div>
 
   </div>
 
@@ -929,6 +925,9 @@ body {
 <div class="toast" id="toast"></div>
 
 <script>
+const SAVE_DATASET_ENABLED = false;
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
 const PRESETS = {
   trailgenic: ['Salomon ADV Skin 12 Hydration Vest', 'Salomon Soft Flasks 500ml', 'Arc\'teryx Wind Jacket', 'New Balance Trail Runners', 'Black Diamond Headlamp', 'LMNT Electrolyte Packs'],
   baldy: ['Osprey Stratos 36', 'Salomon X Ultra 4 Mid GTX', 'Black Diamond Distance Carbon Z Poles', 'Patagonia Houdini Jacket'],
@@ -979,7 +978,7 @@ function renderQueue() {
   if (!queue.length) { el.innerHTML = ''; return; }
   el.innerHTML = queue.map((item, i) => `
     <div class="queue-item">
-      <span class="queue-item-name">${item}</span>
+      <span class="queue-item-name">${esc(item)}</span>
       <span class="queue-remove" onclick="removeFromQueue(${i})">×</span>
     </div>
   `).join('');
@@ -1005,7 +1004,7 @@ function log(msg, type = '') {
   const now = new Date().toLocaleTimeString('en-US', {hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
   const entry = document.createElement('div');
   entry.className = `log-entry ${type}`;
-  entry.innerHTML = `<span class="log-time">${now}</span><span>${msg}</span>`;
+  entry.innerHTML = `<span class="log-time">${esc(now)}</span><span>${esc(msg)}</span>`;
   entries.appendChild(entry);
   entries.scrollTop = entries.scrollHeight;
   document.querySelectorAll('.log-entry').forEach(e => e.classList.remove('active'));
@@ -1017,64 +1016,22 @@ function scoreClass(v) {
 }
 
 async function analyzeOne(gearName, category, sources) {
-  const sourceList = Array.from(sources).join(', ');
-  const today = new Date().toLocaleDateString('en-US', {month:'long', day:'numeric', year:'numeric'});
-
-  const system = `You are the TrailGenic Gear Intelligence Engine. TrailGenic is a longevity platform built around fasted high-altitude hiking. You analyze hiking gear by synthesizing public crowdsourced review data and rescoring it through the TrailGenic longevity lens.
-
-TrailGenic's 6 pillars: fasted hiking, high-altitude training, cold exposure, electrolyte control, nature immersion, measured recovery.
-
-WHAT YOU IGNORE: aesthetics, brand prestige, lifestyle marketing, general comfort scores not altitude/load-specific.
-
-WHAT YOU SCORE (select 4-5 most relevant for the gear category):
-- Metabolic Load Score (0-100): Reduces metabolic cost at altitude? Weight, motion efficiency, dead-load penalty.
-- Recovery Impact (0-100): Post-session recovery — pressure points, circulation, thermal management.
-- Altitude Readiness (0-100): Performance above 10,000ft fasted. Thermoregulation, breathability under exertion.
-- Longevity Protocol Fit (0-100): Compatibility with TG six pillars.
-- Field Durability (0-100): Session-to-session reliability under real alpine conditions.
-- Pack Weight Economics (0-100): Weight-to-function ratio for 20-35 lb loaded alpine carry.
-- Electrolyte/Nutrition Score (supplements only): Formulation quality, sodium/potassium ratio, fasted compatibility.
-
-Respond ONLY with valid JSON, no markdown, no backticks:
-{
-  "product_name": "exact product name",
-  "category": "${category}",
-  "tg_composite_score": 78,
-  "scores": [
-    {"label": "Metabolic Load", "short": "Met", "value": 82, "note": "brief field note"}
-  ],
-  "tg_verdict": "2 sentences from a longevity field practitioner. Specific, data-grounded.",
-  "field_signals": [
-    {"type": "positive", "label": "signal"},
-    {"type": "negative", "label": "signal"},
-    {"type": "neutral", "label": "signal"}
-  ],
-  "recommendations": [
-    {"priority": "critical", "text": "..."},
-    {"priority": "moderate", "text": "..."},
-    {"priority": "enhancement", "text": "..."}
-  ],
-  "tg_protocol_note": "One sentence on fasted high-altitude specific compatibility.",
-  "sources_used": ["${sourceList}"],
-  "analysis_date": "${today}",
-  "data_note": "Public review synthesis. TG scores reflect longevity-protocol weighting, not consumer average."
-}`;
-
-  // ← calls local Vercel API route, API key never hits browser
   const resp = await fetch('/api/analyze', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1000,
-      system,
-      messages: [{ role: 'user', content: `Analyze: ${gearName} — Category: ${category} — Sources: ${sourceList}` }]
-    })
+    body: JSON.stringify({ gear_name: gearName, category, sources: Array.from(sources) })
   });
 
-  const data = await resp.json();
-  const raw = data.content?.find(b => b.type === 'text')?.text || '';
-  return JSON.parse(raw.replace(/```json|```/g, '').trim());
+  if (!resp.ok) {
+    let message = `Analysis failed (${resp.status})`;
+    try {
+      const err = await resp.json();
+      if (err?.error) message = `Analysis failed: ${err.error}${err.status ? ` (${err.status})` : ''}`;
+    } catch (_err) {}
+    throw new Error(message);
+  }
+
+  return await resp.json();
 }
 
 async function runBatch() {
@@ -1118,16 +1075,17 @@ async function runBatch() {
 function renderResults() {
   if (!analysisResults.length) return;
 
-  const sorted = [...analysisResults].sort((a,b) => b.tg_composite_score - a.tg_composite_score);
-  const avg = Math.round(analysisResults.reduce((s,r) => s + r.tg_composite_score, 0) / analysisResults.length);
+  const sorted = [...analysisResults].sort((a,b) => Number(b.tg_composite_score) - Number(a.tg_composite_score));
+  const avg = Math.round(analysisResults.reduce((sum,r) => sum + Number(r.tg_composite_score || 0), 0) / analysisResults.length);
   const top = sorted[0];
+  const topScore = Number(top.tg_composite_score || 0);
   const today = new Date().toLocaleDateString('en-US', {month:'long', day:'numeric', year:'numeric'});
 
   document.getElementById('hub-title').textContent = `${activeCategory} — TG Intelligence Report`;
   document.getElementById('hub-meta').innerHTML = `
-    ANALYZED: ${today}<br>
-    SOURCES: ${Array.from(activeSources).join(' · ')}<br>
-    METHODOLOGY: TrailGenic Longevity Lens v1
+    ANALYZED: ${esc(today)}<br>
+    SOURCES: ${esc(Array.from(activeSources).join(' · '))}<br>
+    METHODOLOGY: TrailGenic Longevity Lens v1 · model synthesis of public review signal
   `;
 
   document.getElementById('summary-bar').innerHTML = `
@@ -1140,7 +1098,7 @@ function renderResults() {
       <div class="summary-stat-label">Avg TG Score</div>
     </div>
     <div class="summary-stat">
-      <div class="summary-stat-value" style="color:var(--good)">${top.tg_composite_score}</div>
+      <div class="summary-stat-value" style="color:var(--good)">${topScore}</div>
       <div class="summary-stat-label">Highest TG Score</div>
     </div>
     <div class="summary-stat">
@@ -1150,41 +1108,49 @@ function renderResults() {
   `;
 
   document.getElementById('gear-cards').innerHTML = sorted.map((r, idx) => {
-    const sc = scoreClass(r.tg_composite_score);
-    const bars = r.scores.slice(0,5).map(s => {
-      const bc = scoreClass(s.value);
+    const compositeScore = Number(r.tg_composite_score || 0);
+    const sc = scoreClass(compositeScore);
+    const scores = Array.isArray(r.scores) ? r.scores : [];
+    const bars = scores.slice(0,5).map(s => {
+      const value = Number(s.value || 0);
+      const bc = scoreClass(value);
+      const label = String(s.label ?? '');
+      const short = String(s.short ?? label.slice(0,4));
       return `
-        <div class="mini-bar-wrap" title="${s.label}: ${s.value}">
+        <div class="mini-bar-wrap" title="${esc(label)}: ${value}">
           <div class="mini-bar-track">
-            <div class="mini-bar-fill ${bc === 'good' ? '' : bc}" style="height:${s.value}%"></div>
+            <div class="mini-bar-fill ${bc === 'good' ? '' : bc}" style="height:${value}%"></div>
           </div>
-          <div class="mini-bar-label">${s.short || s.label.slice(0,4)}</div>
+          <div class="mini-bar-label">${esc(short)}</div>
         </div>`;
     }).join('');
 
-    const scoreChips = r.scores.map(s => {
-      const cls = scoreClass(s.value);
+    const scoreChips = scores.map(s => {
+      const value = Number(s.value || 0);
+      const cls = scoreClass(value);
       return `
         <div class="score-chip-detail">
-          <div class="score-chip-label">${s.label}</div>
-          <div class="score-chip-val ${cls}">${s.value}</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:4px;line-height:1.4">${s.note}</div>
+          <div class="score-chip-label">${esc(s.label)}</div>
+          <div class="score-chip-val ${cls}">${value}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px;line-height:1.4">${esc(s.note)}</div>
         </div>`;
     }).join('');
 
-    const signals = r.field_signals.map(sig => {
+    const fieldSignals = Array.isArray(r.field_signals) ? r.field_signals : [];
+    const signals = fieldSignals.map(sig => {
       const icon = sig.type === 'positive' ? '↑' : sig.type === 'negative' ? '↓' : '→';
       const color = sig.type === 'positive' ? 'var(--good)' : sig.type === 'negative' ? 'var(--danger)' : 'var(--muted)';
-      return `<div class="signal-item"><span class="sig-icon" style="color:${color}">${icon}</span><span>${sig.label}</span></div>`;
+      return `<div class="signal-item"><span class="sig-icon" style="color:${color}">${icon}</span><span>${esc(sig.label)}</span></div>`;
     }).join('');
 
-    const recs = r.recommendations.map(rec => {
+    const recommendations = Array.isArray(r.recommendations) ? r.recommendations : [];
+    const recs = recommendations.map(rec => {
       const dot = rec.priority === 'critical' ? 'var(--danger)' : rec.priority === 'moderate' ? 'var(--caution)' : 'var(--good)';
-      return `<div class="signal-item"><span class="sig-icon" style="color:${dot}">●</span><span>${rec.text}</span></div>`;
+      return `<div class="signal-item"><span class="sig-icon" style="color:${dot}">●</span><span>${esc(rec.text)}</span></div>`;
     }).join('');
 
-    const srcTags = (r.sources_used || []).map(s =>
-      `<span class="source-tag"><span class="source-dot"></span>${s}</span>`
+    const srcTags = (Array.isArray(r.sources_used) ? r.sources_used : []).map(s =>
+      `<span class="source-tag"><span class="source-dot"></span>${esc(s)}</span>`
     ).join('');
 
     return `
@@ -1192,12 +1158,12 @@ function renderResults() {
         <div class="gear-card-header" onclick="toggleCard(${idx})">
           <div class="gear-rank">#${idx+1}</div>
           <div class="gear-name-block">
-            <div class="gear-name">${r.product_name}</div>
-            <div class="gear-category-tag">${r.category}</div>
+            <div class="gear-name">${esc(r.product_name)}</div>
+            <div class="gear-category-tag">${esc(r.category)}</div>
           </div>
           <div class="gear-score-bars">${bars}</div>
           <div class="gear-tg-score">
-            <div class="tg-score-num ${sc}">${r.tg_composite_score}</div>
+            <div class="tg-score-num ${sc}">${compositeScore}</div>
             <div class="tg-score-sub">TG Score</div>
           </div>
           <div class="expand-btn">▾</div>
@@ -1207,8 +1173,8 @@ function renderResults() {
           <div class="detail-grid">
             <div>
               <div class="detail-col-title">Field Verdict</div>
-              <div class="verdict-text">${r.tg_verdict}</div>
-              <div style="margin-top:10px;font-size:13px;color:var(--moss-mid);font-style:italic">${r.tg_protocol_note}</div>
+              <div class="verdict-text">${esc(r.tg_verdict)}</div>
+              <div style="margin-top:10px;font-size:13px;color:var(--moss-mid);font-style:italic">${esc(r.tg_protocol_note)}</div>
             </div>
             <div>
               <div class="detail-col-title">Field Signals</div>
@@ -1219,8 +1185,8 @@ function renderResults() {
               </div>
             </div>
           </div>
-          <div class="source-attr">${srcTags}<span style="margin-left:auto">${r.analysis_date}</span></div>
-          <div style="font-family:'DM Mono',monospace;font-size:8px;color:var(--rule);margin-top:6px;">${r.data_note}</div>
+          <div class="source-attr">${srcTags}<span style="margin-left:auto">${esc(r.analysis_date)}</span></div>
+          <div style="font-family:'DM Mono',monospace;font-size:8px;color:var(--rule);margin-top:6px;">${esc(r.data_note)}</div>
         </div>
       </div>`;
   }).join('');
@@ -1308,6 +1274,16 @@ const TG_FULL_DATASET = {
 
 let fullDatasetResults = {};
 
+const fullCount = Object.values(TG_FULL_DATASET).flat().length;
+document.getElementById('run-note').innerHTML = `
+  Public review signal → TG lens applied<br>
+  Scored &amp; dated at time of analysis<br>
+  Full run: ${fullCount} items · est. ~${Math.ceil(fullCount * 10 / 60)} min
+`;
+if (!SAVE_DATASET_ENABLED) {
+  document.getElementById('push-mcp-btn').style.display = 'none';
+}
+
 async function runFullDataset() {
   const btn = document.getElementById('full-run-btn');
   btn.disabled = true;
@@ -1361,6 +1337,7 @@ async function runFullDataset() {
 }
 
 async function pushToMCP() {
+  if (!SAVE_DATASET_ENABLED) { showToast('MCP KV push not yet wired — export JSON instead'); return; }
   if (!analysisResults.length) { showToast('Run analysis first'); return; }
 
   const btn = document.getElementById('push-mcp-btn');
