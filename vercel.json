@@ -1,0 +1,16 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "outputDirectory": "public",
+  "functions": { "api/**/*.ts": { "maxDuration": 60 } },
+  "crons": [
+    { "path": "/api/jobs/freshness", "schedule": "0 13 * * 1" },
+    { "path": "/api/jobs/discovery", "schedule": "0 14 * * 3" }
+  ],
+  "headers": [{
+    "source": "/api/(.*)",
+    "headers": [
+      { "key": "X-Content-Type-Options", "value": "nosniff" },
+      { "key": "Cache-Control", "value": "no-store" }
+    ]
+  }]
+}
