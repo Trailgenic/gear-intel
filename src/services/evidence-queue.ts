@@ -1,6 +1,7 @@
 import type pg from 'pg';
 import { getPool, withTransaction } from '../db/client.js';
 import type { SourceType } from '../domain/schemas.js';
+import { autoReviewEvidence } from '../db/queries.js';
 import { importEvidence } from './evidence.js';
 
 interface EvidenceQueueJob {
@@ -95,8 +96,10 @@ export async function processEvidenceQueue(limit: number, jobId?: string) {
         ...(job.published_at ? { publishedAt: job.published_at } : {}),
         ...(job.evidence_cutoff ? { evidenceCutoff: job.evidence_cutoff } : {})
       });
-      await finishJob(job.id, imported);
-      return { id: job.id, url: job.url, status: 'complete', ...imported };
+      const automaticReview = await autoReviewEvidence(imported.evidenceIds);
+      const completed = { ...imported, automaticReview };
+      await finishJob(job.id, completed);
+      return { id: job.id, url: job.url, status: 'complete', ...completed };
     } catch (error) {
       return { id: job.id, url: job.url, status: 'failed', error: await failJob(job.id, error) };
     }

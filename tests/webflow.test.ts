@@ -10,5 +10,6 @@ describe('Webflow export', () => {
     expect(html).toContain('Gear Intelligence Hub Embed v2.0.0');
     expect(html).toContain('&lt;script&gt;');
     expect(html).not.toContain('<img src=x>');
+    expect(html).toContain('subjective editorial assessment');
   });
 });

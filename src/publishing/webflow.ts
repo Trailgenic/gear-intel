@@ -29,7 +29,7 @@ export function renderWebflowEmbed(report: PublicReport): string {
     return `<article class="tg-gi-card" data-category="${esc(product.categoryKey)}">
   <div class="tg-gi-card__top"><div><span>${esc(product.categoryKey.replace(/-/g, ' '))}</span><h3>${esc(product.name)}</h3></div><strong>${product.fitScore ?? '—'}</strong></div>
   <p>${esc(product.summary)}</p>
-  <small>${esc(product.fitLabel)} fit · ${esc(product.evidenceState)} evidence · ${Math.round(product.confidence * 100)}% confidence</small>
+  <small>${esc(product.fitLabel)} TrailGenic fit · ${esc(product.evidenceState)} evidence · ${Math.round(product.confidence * 100)}% evidence confidence</small>
   ${sources ? `<div class="tg-gi-card__sources">Sources: ${sources}</div>` : ''}
 </article>`;
   }).join('\n');
@@ -40,7 +40,8 @@ export function renderWebflowEmbed(report: PublicReport): string {
   </style>
   <div class="tg-gi__eyebrow">TrailGenic™ Gear Intelligence · ${esc(report.quarter)}</div>
   <h2 id="tg-gi-title">${esc(report.title)}</h2>
-  <p class="tg-gi__meta">${report.products.length} approved products · Evidence through ${esc(report.evidenceCutoff)} · Rubric ${esc(report.rubricVersion)}</p>
+  <p class="tg-gi__meta">${report.products.length} editorial assessments · Evidence through ${esc(report.evidenceCutoff)} · ${esc(report.rubricVersion)}</p>
+  <p class="tg-gi__meta">TG Score is TrailGenic’s subjective editorial assessment—not a universal or independently reproducible performance measurement.</p>
   <div class="tg-gi__grid">${cards}</div>
 </section>
 <!-- /TrailGenic Gear Intelligence Hub Embed v2.0.0 -->`;

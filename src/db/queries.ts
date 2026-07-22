@@ -300,6 +300,24 @@ export async function verifyEvidence(input: {
   return result.rowCount ?? 0;
 }
 
+export async function autoReviewEvidence(evidenceIds: string[]): Promise<{ verified: number; rejected: number }> {
+  if (!evidenceIds.length) return { verified: 0, rejected: 0 };
+  const result = await getPool().query({
+    text: `UPDATE evidence_items AS evidence
+           SET verification_state=CASE WHEN extraction.product_match='exact' THEN 'verified' ELSE 'rejected' END,
+               verified_by='system:source-policy-v1',verified_at=now()
+           FROM evidence_extractions AS extraction
+           WHERE evidence.extraction_id=extraction.id
+             AND evidence.id=ANY($1::uuid[])
+           RETURNING evidence.verification_state`,
+    values: [evidenceIds]
+  });
+  return {
+    verified: result.rows.filter((row) => row.verification_state === 'verified').length,
+    rejected: result.rows.filter((row) => row.verification_state === 'rejected').length
+  };
+}
+
 export async function listEvidence(productVersionId: string) {
   const result = await getPool().query({
     text: `SELECT ei.id,ei.dimension_key,ei.claim,ei.excerpt,ei.claim_basis,ei.signal,ei.strength,ei.reliability,ei.applicability,

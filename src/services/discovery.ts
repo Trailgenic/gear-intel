@@ -162,6 +162,46 @@ export async function listCandidates() {
   return result.rows;
 }
 
+export async function discoveryIsDue(days = 7): Promise<boolean> {
+  const result = await getPool().query(
+    `SELECT 1 FROM discovery_runs WHERE status='complete' AND completed_at > now() - ($1::text || ' days')::interval LIMIT 1`,
+    [days]
+  );
+  return !result.rowCount;
+}
+
+export async function autoPromotePendingCandidates(limit = 24) {
+  const candidates = await getPool().query({
+    text: `SELECT id FROM product_candidates WHERE status='pending'
+           ORDER BY trend_score DESC,created_at DESC LIMIT $1`,
+    values: [limit]
+  });
+  const accepted: string[] = [];
+  const held: Array<{ candidateId: string; reason: string }> = [];
+  for (const row of candidates.rows) {
+    const candidateId = row.id as string;
+    try {
+      const [reviewed] = await reviewCandidates([{
+        candidateId,
+        reviewer: 'system:auto-discovery-v1',
+        decision: 'accepted',
+        note: 'Automatically admitted to evidence collection after strict discovery-source validation.',
+        corrections: {}
+      }]);
+      if (reviewed?.productVersionId) accepted.push(reviewed.productVersionId);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : 'Automatic candidate validation failed';
+      await getPool().query({
+        text: `UPDATE product_candidates SET status='held',reviewed_by='system:auto-discovery-v1',
+               reviewed_at=now(),review_note=$1 WHERE id=$2 AND status='pending'`,
+        values: [reason.slice(0, 3000), candidateId]
+      });
+      held.push({ candidateId, reason });
+    }
+  }
+  return { accepted, held };
+}
+
 function reviewedCandidate(
   candidate: Record<string, unknown>,
   review: CandidateReview

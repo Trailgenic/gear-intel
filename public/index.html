@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>TrailGenic Gear Intelligence</title>
-  <meta name="description" content="Evidence-backed gear assessments for the TrailGenic Method.">
+  <meta name="description" content="Sourced gear intelligence interpreted through the subjective TrailGenic Method editorial lens.">
   <style>
     :root{--ink:#07130f;--panel:#0d2119;--line:#224739;--mint:#91efbd;--paper:#f3f1e9;--muted:#9db3a9;--gold:#d7ad57;--red:#ff938a;--sans:Inter,ui-sans-serif,system-ui,sans-serif;--serif:Georgia,'Times New Roman',serif}
     *{box-sizing:border-box}body{margin:0;background:var(--ink);color:var(--paper);font-family:var(--sans)}
@@ -18,20 +18,20 @@
 </head>
 <body>
   <main class="shell">
-    <div class="topbar"><div class="brand">TrailGenic™ Gear Intelligence</div><div class="status" id="system-status">Loading approved snapshot…</div></div>
+    <div class="topbar"><div class="brand">TrailGenic™ Gear Intelligence</div><div class="status" id="system-status">Loading current snapshot…</div></div>
     <section class="hero">
       <div class="eyebrow">Evidence database · TrailGenic Method</div>
       <h1 id="report-title">Gear Intelligence</h1>
-      <p class="lede">Products evaluated for protocol fit under explicit conditions—not universal winners and not consumer popularity rankings.</p>
+      <p class="lede">Sourced product facts interpreted through our TrailGenic Method—not universal winners and not objective consumer rankings.</p>
       <div class="meta" id="report-meta"></div>
     </section>
-    <div class="notice"><strong>How to read this:</strong> Fit and evidence confidence are separate. Products with incomplete evidence remain provisional and cannot enter an approved report until reviewed.</div>
+    <div class="notice"><strong>How to read this:</strong> TG Score is our subjective editorial assessment. Evidence confidence is separate and describes the support behind the inputs—not whether an outsider would reproduce our exact score.</div>
     <section>
-      <div class="toolbar"><h2>Approved products</h2><select class="filter" id="category-filter"><option value="">All categories</option></select></div>
+      <div class="toolbar"><h2>TrailGenic editorial index</h2><select class="filter" id="category-filter"><option value="">All categories</option></select></div>
       <div class="grid" id="product-grid"><div class="card">Loading…</div></div>
     </section>
   </main>
-  <footer><div class="shell">TrailGenic Gear Intelligence uses dated, versioned evidence and category-specific TrailGenic Method rubrics. Assessment history is retained when products, evidence, or rubrics change.</div></footer>
+  <footer><div class="shell">TrailGenic Gear Intelligence retains dated sources, model versions, and editorial history. TG Score reflects the TrailGenic Method perspective and is not a scientific measurement.</div></footer>
   <script>
     const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     const label=s=>String(s??'').replace(/-/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
@@ -40,24 +40,24 @@
       const selected=document.getElementById('category-filter').value;
       const products=(report?.products||[]).filter(p=>!selected||p.categoryKey===selected);
       document.getElementById('product-grid').innerHTML=products.length?products.map(p=>`<article class="card">
-        <div class="card-head"><div><div class="category">${esc(label(p.categoryKey))}</div><h3>${esc(p.name)}</h3></div><div class="score">${p.fitScore??'—'}<small>Protocol fit</small></div></div>
+        <div class="card-head"><div><div class="category">${esc(label(p.categoryKey))}</div><h3>${esc(p.name)}</h3></div><div class="score">${p.fitScore??'—'}<small>TG editorial score</small></div></div>
         <span class="label">${esc(label(p.fitLabel))} fit</span>
         <p class="summary">${esc(p.summary||'Approved structured assessment; narrative pending.')}</p>
-        <div class="evidence">Evidence: ${esc(label(p.evidenceState))} · confidence ${Math.round(Number(p.confidence||0)*100)}% · coverage ${Math.round(Number(p.evidenceCoverage||0)*100)}% · ${p.sources?.length||0} cited sources</div>
-      </article>`).join(''):'<div class="card">No approved products in this view.</div>';
+        <div class="evidence">Evidence: ${esc(label(p.evidenceState))} · evidence confidence ${Math.round(Number(p.confidence||0)*100)}% · coverage ${Math.round(Number(p.evidenceCoverage||0)*100)}% · ${p.sources?.length||0} cited sources</div>
+      </article>`).join(''):'<div class="card">No scored products in this view.</div>';
     }
     async function load(){
       try{
         const response=await fetch('/api/reports/latest');
-        if(!response.ok)throw new Error(response.status===404?'No approved report has been published yet.':'Report API unavailable.');
+        if(!response.ok)throw new Error(response.status===404?'No editorial report has been published yet.':'Report API unavailable.');
         report=await response.json();
         document.getElementById('report-title').textContent=report.title||'Gear Intelligence';
-        document.getElementById('system-status').textContent='Approved snapshot';
-        document.getElementById('report-meta').innerHTML=[`Quarter ${report.quarter}`,`Evidence cutoff ${report.evidenceCutoff}`,`Rubric ${report.rubricVersion}`,`${report.products?.length||0} approved products`].map(x=>`<span class="chip">${esc(x)}</span>`).join('');
+        document.getElementById('system-status').textContent='Current editorial snapshot';
+        document.getElementById('report-meta').innerHTML=[`Quarter ${report.quarter}`,`Evidence cutoff ${report.evidenceCutoff}`,`Lens ${report.rubricVersion}`,`${report.products?.length||0} scored products`].map(x=>`<span class="chip">${esc(x)}</span>`).join('');
         const categories=[...new Set((report.products||[]).map(p=>p.categoryKey))].sort();
         document.getElementById('category-filter').innerHTML='<option value="">All categories</option>'+categories.map(c=>`<option value="${esc(c)}">${esc(label(c))}</option>`).join('');
         render();
-      }catch(error){document.getElementById('system-status').textContent='Awaiting approved data';document.getElementById('product-grid').innerHTML=`<div class="card error">${esc(error.message)}</div>`;}
+      }catch(error){document.getElementById('system-status').textContent='Awaiting editorial data';document.getElementById('product-grid').innerHTML=`<div class="card error">${esc(error.message)}</div>`;}
     }
     document.getElementById('category-filter').addEventListener('change',render);load();
   </script>
