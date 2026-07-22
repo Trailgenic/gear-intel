@@ -57,7 +57,8 @@ export async function runEditorialPipeline(triggerType: TriggerType = 'scheduled
     metrics.queue = queue.summary;
 
     let report: unknown = null;
-    if (!openJobs.length && Date.now() < deadline) {
+    let editorialPending = false;
+    if (!openJobs.length && Date.now() < deadline-60_000) {
       await getPool().query(`UPDATE pipeline_runs SET stage='editorial',metrics=$1,exceptions=$2,updated_at=now() WHERE id=$3`, [
         JSON.stringify(metrics),JSON.stringify(exceptions),pipelineRunId
       ]);
@@ -65,13 +66,14 @@ export async function runEditorialPipeline(triggerType: TriggerType = 'scheduled
       metrics.report = report && typeof report === 'object' && 'published' in report
         ? { published: report.published }
         : { published: false };
-    }
+    } else if (!openJobs.length) editorialPending = true;
 
-    const status = openJobs.length ? 'partial' : 'complete';
+    const status = openJobs.length || editorialPending ? 'partial' : 'complete';
     await getPool().query({
       text: `UPDATE pipeline_runs SET status=$1,stage=$2,metrics=$3,exceptions=$4,completed_at=now(),updated_at=now()
              WHERE id=$5`,
-      values: [status,status === 'complete' ? 'complete' : 'evidence',JSON.stringify(metrics),JSON.stringify(exceptions),pipelineRunId]
+      values: [status,status === 'complete' ? 'complete' : editorialPending ? 'editorial' : 'evidence',
+        JSON.stringify(metrics),JSON.stringify(exceptions),pipelineRunId]
     });
     return { pipelineRunId,status,metrics,exceptions,report };
   } catch (error) {

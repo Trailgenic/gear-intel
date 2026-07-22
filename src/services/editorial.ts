@@ -1,8 +1,9 @@
 import { z } from 'zod';
 import { getPool, withTransaction } from '../db/client.js';
+import { fitLabelForScore } from '../publishing/report.js';
 import { getRubric } from '../rubrics/index.js';
 
-const promptVersion = 'trailgenic-editorial-score-v1';
+const promptVersion = 'trailgenic-editorial-score-v2-original-report-contract';
 
 interface EvidenceClaimRow {
   sourceId: string;
@@ -36,29 +37,47 @@ const EditorialOutputSchema = z.object({
   products: z.array(z.object({
     productVersionId: z.string().uuid(),
     tgScore: z.number().int().min(0).max(100),
-    fitLabel: z.enum(['strong','conditional','limited']),
-    rationale: z.string().trim().min(1).max(1200),
-    limitations: z.string().trim().max(1000),
-    strengths: z.array(z.string().trim().min(1).max(240)).max(5),
-    cautions: z.array(z.string().trim().min(1).max(240)).max(5)
-  })).max(40)
+    scores: z.array(z.object({
+      label: z.enum([
+        'Metabolic Load','Recovery Impact','Altitude Readiness','Longevity Protocol Fit',
+        'Field Durability','Pack Weight Economics','Electrolyte/Nutrition Score'
+      ]),
+      value: z.number().int().min(0).max(100),
+      note: z.string().trim().min(1).max(700)
+    })).min(4).max(5),
+    verdict: z.string().trim().min(1).max(1800),
+    protocolNote: z.string().trim().min(1).max(700)
+  })).max(80)
 });
 
 const editorialJsonSchema = {
   type: 'object', additionalProperties: false, required: ['products'],
   properties: {
     products: {
-      type: 'array', maxItems: 40,
+      type: 'array', maxItems: 8,
       items: {
         type: 'object', additionalProperties: false,
-        required: ['productVersionId','tgScore','fitLabel','rationale','limitations','strengths','cautions'],
+        required: ['productVersionId','tgScore','scores','verdict','protocolNote'],
         properties: {
           productVersionId: { type: 'string' },
           tgScore: { type: 'integer', minimum: 0, maximum: 100 },
-          fitLabel: { type: 'string', enum: ['strong','conditional','limited'] },
-          rationale: { type: 'string' }, limitations: { type: 'string' },
-          strengths: { type: 'array', maxItems: 5, items: { type: 'string' } },
-          cautions: { type: 'array', maxItems: 5, items: { type: 'string' } }
+          scores: {
+            type: 'array', minItems: 4, maxItems: 5,
+            items: {
+              type: 'object', additionalProperties: false,
+              required: ['label','value','note'],
+              properties: {
+                label: { type: 'string', enum: [
+                  'Metabolic Load','Recovery Impact','Altitude Readiness','Longevity Protocol Fit',
+                  'Field Durability','Pack Weight Economics','Electrolyte/Nutrition Score'
+                ] },
+                value: { type: 'integer', minimum: 0, maximum: 100 },
+                note: { type: 'string' }
+              }
+            }
+          },
+          verdict: { type: 'string' },
+          protocolNote: { type: 'string' }
         }
       }
     }
@@ -71,13 +90,7 @@ export function quarterForDate(date: Date): string {
   return `${date.getUTCFullYear()}-Q${Math.floor(date.getUTCMonth() / 3) + 1}`;
 }
 
-export function fitLabelForScore(score: number): 'strong' | 'conditional' | 'limited' {
-  if (score >= 75) return 'strong';
-  if (score >= 55) return 'conditional';
-  return 'limited';
-}
-
-async function loadEditorialInputs(limit = 40): Promise<{ products: EditorialInput[]; exclusions: unknown[] }> {
+async function loadEditorialInputs(limit = 80): Promise<{ products: EditorialInput[]; exclusions: unknown[] }> {
   const result = await getPool().query({
     text: `SELECT version.id AS product_version_id,version.display_name,version.model_version,
                   product.brand,category.key AS category_key,
@@ -157,6 +170,41 @@ function modelInput(products: EditorialInput[]) {
   });
 }
 
+const editorialInstructions = `You are the TrailGenic Gear Intelligence scorer. Preserve the original TrailGenic report contract.
+TG Score and every category sub-score are deliberately subjective TrailGenic house judgments. They do not need to be independently reproducible, and they are not scientific measurements, medical claims, consumer averages, or universal rankings.
+Use the supplied sourced facts and observations as inputs, then apply TrailGenic's fasted high-altitude longevity lens. Ignore aesthetics, brand prestige, lifestyle marketing, and generic comfort that has no altitude, load, recovery, or protocol relevance. Do not invent product specifications.
+For each product, assign one TG composite score from 0 to 100 and select exactly four or five relevant sub-scores from this original report vocabulary: Metabolic Load, Recovery Impact, Altitude Readiness, Longevity Protocol Fit, Field Durability, Pack Weight Economics, and Electrolyte/Nutrition Score. Electrolyte/Nutrition Score is only for supplements. Each sub-score needs a specific editorial field note grounded in the supplied inputs.
+Write a two-sentence field verdict explaining the TrailGenic judgment, including the main benefit and the material limitation. Write one concise protocol note about fasted high-altitude compatibility. Evidence confidence is supplied for context only and must never determine or validate the TG Score. Return exactly one result for every supplied productVersionId.`;
+
+async function scoreEditorialBatch(products: EditorialInput[],apiKey: string,model: string) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 55_000);
+  try {
+    const response = await fetch('https://api.openai.com/v1/responses', {
+      method: 'POST',signal: controller.signal,
+      headers: { Authorization: `Bearer ${apiKey}`,'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model,reasoning: { effort: 'low' },instructions: editorialInstructions,
+        input: JSON.stringify({ editorialPerspective: 'TrailGenic Method',products: modelInput(products) }),
+        text: { format: { type: 'json_schema',name: 'trailgenic_editorial_scores',strict: true,schema: editorialJsonSchema } },
+        max_output_tokens: 5000
+      })
+    });
+    if (!response.ok) throw new Error(`OpenAI editorial scoring failed (${response.status})`);
+    const payload = await response.json() as {
+      model?: string;output_text?: string;
+      output?: Array<{ content?: Array<{ type?: string;text?: string }> }>;
+      usage?: { input_tokens?: number;output_tokens?: number };
+    };
+    const outputText = payload.output_text ?? payload.output?.flatMap((item) => item.content ?? [])
+      .find((item) => item.type === 'output_text')?.text;
+    if (!outputText) throw new Error('Editorial scoring returned no structured output');
+    return { scored: EditorialOutputSchema.parse(JSON.parse(outputText)),payload };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export async function generateEditorialReport(pipelineRunId?: string) {
   const now = new Date();
   const quarter = quarterForDate(now);
@@ -175,37 +223,17 @@ export async function generateEditorialReport(pipelineRunId?: string) {
   });
   const runId = run.rows[0]?.id as string;
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 55_000);
-    let response: Response;
-    try {
-      response = await fetch('https://api.openai.com/v1/responses', {
-        method: 'POST', signal: controller.signal,
-        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model, reasoning: { effort: 'low' },
-          instructions: `You are the TrailGenic Gear Intelligence editorial scorer.
-TG Score is deliberately a subjective house assessment of product fit for the TrailGenic Method. It is not a scientific measurement, consumer popularity score, medical claim, or universal ranking.
-Use only the supplied sourced facts and observations. Apply the stated TrailGenic use case and weighted category dimensions as editorial priorities. Manufacturer claims are weaker than independent observations and controlled tests. Do not invent specifications or outcomes.
-Score consistently across the supplied slate from 0 to 100. Use strong for 75-100, conditional for 55-74, and limited for 0-54. Explain why the product fits our method, when it does not, and the conditions that materially change the judgment. Evidence confidence is supplied separately and must not be treated as the TG Score. Return exactly one result for every supplied productVersionId.`,
-          input: JSON.stringify({ editorialPerspective: 'TrailGenic Method', products: modelInput(products) }),
-          text: { format: { type: 'json_schema', name: 'trailgenic_editorial_scores', strict: true, schema: editorialJsonSchema } },
-          max_output_tokens: 8000
-        })
-      });
-    } finally {
-      clearTimeout(timeout);
-    }
-    if (!response.ok) throw new Error(`OpenAI editorial scoring failed (${response.status})`);
-    const responsePayload = await response.json() as {
-      model?: string; output_text?: string;
-      output?: Array<{ content?: Array<{ type?: string; text?: string }> }>;
-      usage?: { input_tokens?: number; output_tokens?: number };
+    const batches: EditorialInput[][] = [];
+    for (let index=0;index<products.length;index+=8) batches.push(products.slice(index,index+8));
+    const batchResults = await Promise.all(batches.map((batch) => scoreEditorialBatch(batch,apiKey,model)));
+    const scored = { products: batchResults.flatMap((batch) => batch.scored.products) };
+    const responsePayload = {
+      model: batchResults.map((batch) => batch.payload.model).find(Boolean) ?? model,
+      usage: {
+        input_tokens: batchResults.reduce((sum,batch) => sum+(batch.payload.usage?.input_tokens ?? 0),0),
+        output_tokens: batchResults.reduce((sum,batch) => sum+(batch.payload.usage?.output_tokens ?? 0),0)
+      }
     };
-    const outputText = responsePayload.output_text ?? responsePayload.output?.flatMap((item) => item.content ?? [])
-      .find((item) => item.type === 'output_text')?.text;
-    if (!outputText) throw new Error('Editorial scoring returned no structured output');
-    const scored = EditorialOutputSchema.parse(JSON.parse(outputText));
     const inputById = new Map(products.map((product) => [product.productVersionId, product]));
     const unique = new Set(scored.products.map((product) => product.productVersionId));
     if (unique.size !== products.length || scored.products.length !== products.length || scored.products.some((score) => !inputById.has(score.productVersionId))) {
@@ -231,10 +259,9 @@ Score consistently across the supplied slate from 0 to 100. Use strong for 75-10
         evidenceCoverage: product.evidenceCoverage,
         evidenceState: product.evidenceConfidence >= 0.7 ? 'supported' : 'preliminary',
         fitLabel: score.fitLabel,
-        summary: score.rationale,
-        limitations: score.limitations,
-        strengths: score.strengths,
-        cautions: score.cautions,
+        summary: score.verdict,
+        protocolNote: score.protocolNote,
+        scores: score.scores,
         sources,
         sourceCount: product.sourceCount,
         evidenceCount: product.evidenceCount
@@ -247,22 +274,23 @@ Score consistently across the supplied slate from 0 to 100. Use strong for 75-10
         await client.query({
           text: `INSERT INTO editorial_scores
                    (editorial_run_id,product_version_id,tg_score,fit_label,rationale,limitations,strengths,cautions,
-                    evidence_confidence,evidence_coverage,source_count,evidence_count)
-                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
-          values: [runId,score.productVersionId,score.tgScore,score.fitLabel,score.rationale,score.limitations,
-            JSON.stringify(score.strengths),JSON.stringify(score.cautions),product.evidenceConfidence,
-            product.evidenceCoverage,product.sourceCount,product.evidenceCount]
+                    evidence_confidence,evidence_coverage,source_count,evidence_count,dimension_scores,protocol_note)
+                 VALUES ($1,$2,$3,$4,$5,'','[]','[]',$6,$7,$8,$9,$10,$11)`,
+          values: [runId,score.productVersionId,score.tgScore,score.fitLabel,score.verdict,
+            product.evidenceConfidence,product.evidenceCoverage,product.sourceCount,product.evidenceCount,
+            JSON.stringify(score.scores),score.protocolNote]
         });
         await client.query(`UPDATE products SET status='active',updated_at=now() WHERE id=(SELECT product_id FROM product_versions WHERE id=$1)`, [score.productVersionId]);
       }
       const reportPayload = {
-        reportType: 'TrailGenic Gear Intelligence Editorial Index',
+        reportType: 'TrailGenic Gear Intelligence',
         title: `Gear Intelligence Report — ${quarter}`,
         quarter,
         evidenceCutoff,
         generatedAt: now.toISOString(),
-        rubricVersion: 'TrailGenic editorial lens v1 / category rubrics 2.0.0',
-        methodology: 'TG Score is a subjective TrailGenic editorial assessment of protocol fit, generated from sourced product facts and observations. It is not a universal or independently reproducible performance measurement.',
+        rubricVersion: 'TrailGenic longevity lens / original report contract',
+        methodology: 'Public product and review signals rescored through TrailGenic’s subjective longevity, fasted-hiking, altitude, recovery, and protocol-fit lens.',
+        version: `${quarter.replace(/^(\d{4})-Q([1-4])$/,'Q$2-$1')}.1`,
         approvedBy: 'TrailGenic automated editorial policy v1',
         model: responsePayload.model ?? model,
         promptVersion,
@@ -292,4 +320,4 @@ Score consistently across the supplied slate from 0 to 100. Use strong for 75-10
   }
 }
 
-export { promptVersion as EDITORIAL_PROMPT_VERSION };
+export { fitLabelForScore, promptVersion as EDITORIAL_PROMPT_VERSION };

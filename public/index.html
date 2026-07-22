@@ -3,63 +3,55 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>TrailGenic Gear Intelligence</title>
-  <meta name="description" content="Sourced gear intelligence interpreted through the subjective TrailGenic Method editorial lens.">
+  <title>TrailGenic Gear Intelligence — Publishing Console</title>
+  <meta name="description" content="Generate the TrailGenic Gear Intelligence Webflow embed and MCP dataset.">
   <style>
-    :root{--ink:#07130f;--panel:#0d2119;--line:#224739;--mint:#91efbd;--paper:#f3f1e9;--muted:#9db3a9;--gold:#d7ad57;--red:#ff938a;--sans:Inter,ui-sans-serif,system-ui,sans-serif;--serif:Georgia,'Times New Roman',serif}
-    *{box-sizing:border-box}body{margin:0;background:var(--ink);color:var(--paper);font-family:var(--sans)}
-    a{color:inherit}.shell{width:min(1180px,calc(100% - 40px));margin:auto}.topbar{display:flex;justify-content:space-between;align-items:center;padding:24px 0;border-bottom:1px solid var(--line);font-size:12px;letter-spacing:.14em;text-transform:uppercase}.brand{color:var(--mint);font-weight:700}.status{color:var(--muted)}
-    .hero{padding:76px 0 52px}.eyebrow{color:var(--mint);font-size:12px;font-weight:700;letter-spacing:.16em;text-transform:uppercase}.hero h1{font:400 clamp(48px,8vw,96px)/.94 var(--serif);letter-spacing:-.045em;margin:18px 0;max-width:920px}.lede{font-size:clamp(18px,2.5vw,28px);line-height:1.35;color:#d7e7df;max-width:860px}.meta{display:flex;flex-wrap:wrap;gap:10px;margin-top:32px}.chip{border:1px solid var(--line);border-radius:999px;padding:9px 13px;color:var(--muted);font-size:12px}
-    .notice{border:1px solid var(--line);background:var(--panel);padding:22px;margin:10px 0 40px;line-height:1.55;color:#d7e7df}.notice strong{color:var(--mint)}
-    .toolbar{display:flex;gap:12px;align-items:center;justify-content:space-between;margin:34px 0 18px}.toolbar h2{font:400 34px/1 var(--serif);margin:0}.filter{background:transparent;border:1px solid var(--line);color:var(--paper);padding:10px 12px}
-    .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding-bottom:72px}.card{background:var(--panel);border:1px solid var(--line);padding:22px;min-height:240px}.card-head{display:flex;justify-content:space-between;gap:15px}.category{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--mint)}.card h3{font:400 25px/1.05 var(--serif);margin:9px 0 18px}.score{font:400 44px/1 var(--serif);color:var(--mint)}.score small{display:block;font:600 9px/1 var(--sans);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-top:7px}.label{display:inline-block;padding:5px 8px;border:1px solid var(--line);font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--gold)}.summary{color:#c2d3cb;line-height:1.5;font-size:14px;margin:17px 0}.evidence{color:var(--muted);font-size:11px}.error{color:var(--red)}footer{border-top:1px solid var(--line);padding:28px 0 50px;color:var(--muted);font-size:12px;line-height:1.6}
-    @media(max-width:900px){.grid{grid-template-columns:1fr 1fr}}@media(max-width:620px){.shell{width:min(100% - 26px,1180px)}.topbar{align-items:flex-start;gap:15px}.grid{grid-template-columns:1fr}.hero{padding-top:48px}.toolbar{align-items:flex-start;flex-direction:column}.filter{width:100%}}
+    :root{--ink:#07130f;--panel:#0d2119;--line:#224739;--mint:#91efbd;--paper:#f3f1e9;--muted:#9db3a9;--red:#ff938a}*{box-sizing:border-box}body{margin:0;background:var(--ink);color:var(--paper);font-family:Inter,ui-sans-serif,system-ui,sans-serif}.shell{width:min(1220px,calc(100% - 34px));margin:auto}.top{padding:24px 0;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:20px}.brand{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--mint);font-weight:700}.status{font-size:12px;color:var(--muted)}.hero{padding:52px 0 28px}.hero h1{font:400 clamp(42px,7vw,78px)/.96 Georgia,serif;letter-spacing:-.04em;margin:10px 0}.hero p{max-width:760px;color:#cadbd3;line-height:1.55;font-size:18px}.actions{display:flex;flex-wrap:wrap;gap:10px;padding:0 0 38px}.button{appearance:none;border:1px solid var(--mint);background:var(--mint);color:var(--ink);font:700 12px/1 Inter,system-ui,sans-serif;letter-spacing:.04em;padding:13px 16px;cursor:pointer;text-decoration:none}.button.secondary{background:transparent;color:var(--mint)}.button:disabled{opacity:.45;cursor:not-allowed}.notice{min-height:22px;color:var(--muted);font-size:12px;margin:0 0 18px}.notice.error{color:var(--red)}.preview-shell{background:#fff;border:1px solid var(--line);min-height:320px;margin-bottom:70px}.loading{padding:50px;color:#52635b}footer{border-top:1px solid var(--line);padding:24px 0 40px;color:var(--muted);font-size:12px}@media(max-width:620px){.top{align-items:flex-start;flex-direction:column}.button{width:100%;text-align:center}}
   </style>
 </head>
 <body>
-  <main class="shell">
-    <div class="topbar"><div class="brand">TrailGenic™ Gear Intelligence</div><div class="status" id="system-status">Loading current snapshot…</div></div>
+  <div class="shell">
+    <header class="top"><div class="brand">TrailGenic™ Gear Intelligence</div><div class="status" id="status">Loading current report…</div></header>
     <section class="hero">
-      <div class="eyebrow">Evidence database · TrailGenic Method</div>
-      <h1 id="report-title">Gear Intelligence</h1>
-      <p class="lede">Sourced product facts interpreted through our TrailGenic Method—not universal winners and not objective consumer rankings.</p>
-      <div class="meta" id="report-meta"></div>
+      <h1>Publishing Console</h1>
+      <p>One report, two outputs: the complete Webflow HTML embed and the matching MCP dataset.</p>
     </section>
-    <div class="notice"><strong>How to read this:</strong> TG Score is our subjective editorial assessment. Evidence confidence is separate and describes the support behind the inputs—not whether an outsider would reproduce our exact score.</div>
-    <section>
-      <div class="toolbar"><h2>TrailGenic editorial index</h2><select class="filter" id="category-filter"><option value="">All categories</option></select></div>
-      <div class="grid" id="product-grid"><div class="card">Loading…</div></div>
-    </section>
-  </main>
-  <footer><div class="shell">TrailGenic Gear Intelligence retains dated sources, model versions, and editorial history. TG Score reflects the TrailGenic Method perspective and is not a scientific measurement.</div></footer>
+    <div class="actions">
+      <button class="button" id="copy-html" disabled>Copy Full Webflow Embed</button>
+      <a class="button secondary" id="download-html" href="/api/exports/webflow?download=1">Download Webflow Embed</a>
+      <a class="button secondary" id="download-mcp" href="/api/exports/mcp?download=1">Download MCP Dataset</a>
+    </div>
+    <div class="notice" id="notice">The preview below is the exact report generated for Webflow.</div>
+    <main class="preview-shell" id="preview"><div class="loading">Loading report preview…</div></main>
+  </div>
+  <footer><div class="shell">The HTML output replaces the contents of the single Gear Intelligence Webflow embed. The JSON output preserves the existing MCP Dataset → Product → PropertyValue schema.</div></footer>
   <script>
-    const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-    const label=s=>String(s??'').replace(/-/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
-    let report=null;
-    function render(){
-      const selected=document.getElementById('category-filter').value;
-      const products=(report?.products||[]).filter(p=>!selected||p.categoryKey===selected);
-      document.getElementById('product-grid').innerHTML=products.length?products.map(p=>`<article class="card">
-        <div class="card-head"><div><div class="category">${esc(label(p.categoryKey))}</div><h3>${esc(p.name)}</h3></div><div class="score">${p.fitScore??'—'}<small>TG editorial score</small></div></div>
-        <span class="label">${esc(label(p.fitLabel))} fit</span>
-        <p class="summary">${esc(p.summary||'Approved structured assessment; narrative pending.')}</p>
-        <div class="evidence">Evidence: ${esc(label(p.evidenceState))} · evidence confidence ${Math.round(Number(p.confidence||0)*100)}% · coverage ${Math.round(Number(p.evidenceCoverage||0)*100)}% · ${p.sources?.length||0} cited sources</div>
-      </article>`).join(''):'<div class="card">No scored products in this view.</div>';
-    }
+    const status=document.getElementById('status');
+    const notice=document.getElementById('notice');
+    const preview=document.getElementById('preview');
+    const copy=document.getElementById('copy-html');
+    let html='';
     async function load(){
       try{
-        const response=await fetch('/api/reports/latest');
-        if(!response.ok)throw new Error(response.status===404?'No editorial report has been published yet.':'Report API unavailable.');
-        report=await response.json();
-        document.getElementById('report-title').textContent=report.title||'Gear Intelligence';
-        document.getElementById('system-status').textContent='Current editorial snapshot';
-        document.getElementById('report-meta').innerHTML=[`Quarter ${report.quarter}`,`Evidence cutoff ${report.evidenceCutoff}`,`Lens ${report.rubricVersion}`,`${report.products?.length||0} scored products`].map(x=>`<span class="chip">${esc(x)}</span>`).join('');
-        const categories=[...new Set((report.products||[]).map(p=>p.categoryKey))].sort();
-        document.getElementById('category-filter').innerHTML='<option value="">All categories</option>'+categories.map(c=>`<option value="${esc(c)}">${esc(label(c))}</option>`).join('');
-        render();
-      }catch(error){document.getElementById('system-status').textContent='Awaiting editorial data';document.getElementById('product-grid').innerHTML=`<div class="card error">${esc(error.message)}</div>`;}
+        const [htmlResponse,reportResponse]=await Promise.all([fetch('/api/exports/webflow'),fetch('/api/reports/latest')]);
+        if(!htmlResponse.ok||!reportResponse.ok)throw new Error('The report outputs are not available.');
+        html=await htmlResponse.text();
+        const report=await reportResponse.json();
+        preview.innerHTML=html;
+        copy.disabled=false;
+        status.textContent=`${report.products.length} products · ${report.version}`;
+      }catch(error){
+        status.textContent='Report unavailable';
+        notice.textContent=error.message;
+        notice.classList.add('error');
+        preview.innerHTML='<div class="loading">Unable to load the report.</div>';
+      }
     }
-    document.getElementById('category-filter').addEventListener('change',render);load();
+    copy.addEventListener('click',async()=>{
+      try{await navigator.clipboard.writeText(html);notice.textContent='Full Webflow HTML embed copied.';}
+      catch(_){notice.textContent='Clipboard access was blocked. Use Download Webflow Embed instead.';}
+    });
+    load();
   </script>
 </body>
 </html>

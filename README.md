@@ -1,6 +1,17 @@
 # TrailGenic Gear Intelligence
 
-TrailGenic Gear Intelligence is a versioned product-and-evidence database for identifying gear that fits the TrailGenic Method under explicit conditions. TG Score is a subjective TrailGenic editorial judgment, not a universal or independently reproducible measurement.
+TrailGenic Gear Intelligence produces one subjective TrailGenic gear report in two publication formats: a complete Webflow HTML embed and the matching MCP dataset.
+
+## Locked output contract
+
+The publishing console exposes only the two operational deliverables:
+
+- `/api/exports/webflow` — the complete, self-contained Gear Intelligence HTML embed
+- `/api/exports/mcp` — JSON matching the existing `Dataset → hasPart Product → additionalProperty PropertyValue` MCP schema
+
+Until a new database snapshot is complete, both exports restore the existing 42-product Q2 2026 dataset from `https://mcp.trailgenic.com/datasets/gear/intel`. The public report never goes blank between refreshes.
+
+Each scored product preserves the original report contract: TG Composite Score, four or five relevant TrailGenic sub-scores with field notes, and a TrailGenic field verdict. These are subjective house judgments; sourced product facts are inputs, not an external validation requirement.
 
 Version 2 replaces the original one-shot model scoring page with an unattended, auditable workflow:
 
@@ -122,6 +133,8 @@ Public endpoints:
 | `GET` | `/api/products` | Catalog list; optional `?category=` filter |
 | `GET` | `/api/reports/latest` | Latest immutable editorial report snapshot |
 | `GET` | `/api/pipeline/status` | Latest unattended pipeline stage, metrics, and exceptions |
+| `GET` | `/api/exports/webflow` | Full Webflow HTML embed; `?download=1` downloads it |
+| `GET` | `/api/exports/mcp` | MCP-compatible JSON dataset; `?download=1` downloads it |
 
 Operator endpoints require `Authorization: Bearer $ADMIN_API_TOKEN`:
 
@@ -164,17 +177,11 @@ Application code calculates evidence coverage, source diversity, and evidence co
 
 The numeric TG Score is the TrailGenic house judgment. The labels are fixed display bands: `strong` for 75–100, `conditional` for 55–74, and `limited` for 0–54. Evidence confidence describes the factual support behind the inputs and never substitutes for or validates that editorial score.
 
-## Publishing to Webflow
+## Publishing
 
-After a current editorial snapshot exists:
+Open the repository landing page, copy or download the complete Webflow embed, replace the contents of the single existing Gear Intelligence HTML embed in Webflow, and publish. No native Webflow/tggi elements or additional page structures are created.
 
-```bash
-npm run export:webflow > gear-hub-embed.html
-```
-
-The command emits one complete, versioned HTML Code Embed. It does not edit Webflow, create branches, create `tggi` elements, or publish anything.
-
-The repository landing page reads `/api/reports/latest` and displays the latest editorial index. Before the first completed snapshot it intentionally shows an awaiting-data state.
+Download the MCP JSON to update the existing `mcp.trailgenic.com/datasets/gear/intel` dataset. The schema remains compatible with the current Q2 2026 MCP payload.
 
 ## Security and provenance
 

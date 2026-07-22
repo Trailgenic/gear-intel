@@ -1,48 +1,49 @@
-interface PublicProduct {
-  name: string;
-  categoryKey: string;
-  fitScore: number | null;
-  confidence: number;
-  evidenceCoverage: number;
-  evidenceState: string;
-  fitLabel: string;
-  summary: string;
-  limitations: string;
-  sources?: Array<{ url: string; title?: string | null; publisher: string }>;
-}
-
-interface PublicReport {
-  title: string;
-  quarter: string;
-  evidenceCutoff: string;
-  rubricVersion: string;
-  products: PublicProduct[];
-}
+import { categoryLabels, displayQuarter, type GearReport } from './report.js';
 
 const esc = (value: unknown) => String(value ?? '').replace(/[&<>"']/g, (character) => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
 }[character] ?? character));
 
-export function renderWebflowEmbed(report: PublicReport): string {
-  const cards = report.products.map((product) => {
-    const sources = (product.sources ?? []).map((source) => `<a href="${esc(source.url)}" target="_blank" rel="noopener noreferrer">${esc(source.title || source.publisher)}</a>`).join(' · ');
-    return `<article class="tg-gi-card" data-category="${esc(product.categoryKey)}">
-  <div class="tg-gi-card__top"><div><span>${esc(product.categoryKey.replace(/-/g, ' '))}</span><h3>${esc(product.name)}</h3></div><strong>${product.fitScore ?? '—'}</strong></div>
-  <p>${esc(product.summary)}</p>
-  <small>${esc(product.fitLabel)} TrailGenic fit · ${esc(product.evidenceState)} evidence · ${Math.round(product.confidence * 100)}% evidence confidence</small>
-  ${sources ? `<div class="tg-gi-card__sources">Sources: ${sources}</div>` : ''}
-</article>`;
+function sourceLine(report: GearReport): string {
+  const sources = [...new Set(report.products.flatMap((product) => product.sources.map((source) => source.publisher)))];
+  return sources.length ? sources.join(', ') : 'OutdoorGearLab, REI Expert Reviews, Reddit r/ultralight';
+}
+
+export function renderWebflowEmbed(report: GearReport): string {
+  const products = [...report.products].sort((a,b) => b.fitScore-a.fitScore || a.name.localeCompare(b.name));
+  let previousScore: number | null = null;
+  let previousRank = 0;
+  const rows = products.map((product,index) => {
+    const rank = product.fitScore === previousScore ? previousRank : index + 1;
+    previousScore = product.fitScore;
+    previousRank = rank;
+    return `<tr>
+      <td>${rank}</td>
+      <td><strong>${esc(product.name)}</strong><span>${esc(product.summary)}</span></td>
+      <td><em>${esc(categoryLabels[product.categoryKey] ?? product.categoryKey)}</em></td>
+      <td><b>${product.fitScore}</b></td>
+    </tr>`;
   }).join('\n');
-  return `<!-- TrailGenic Gear Intelligence Hub Embed v2.0.0 -->
-<section class="tg-gi" aria-labelledby="tg-gi-title">
+  const shownQuarter = displayQuarter(report.quarter);
+  return `<!-- TrailGenic Gear Intelligence — Full Webflow HTML Embed v3.0.0 -->
+<section class="tg-gear-intel" aria-labelledby="tg-gear-intel-title">
   <style>
-    .tg-gi{--ink:#07130f;--panel:#0d2119;--line:#224739;--mint:#91efbd;background:var(--ink);color:#f3f1e9;padding:clamp(28px,5vw,72px);font-family:Inter,system-ui,sans-serif}.tg-gi *{box-sizing:border-box}.tg-gi a{color:var(--mint)}.tg-gi h2{font:400 clamp(42px,7vw,84px)/.95 Georgia,serif;margin:10px 0}.tg-gi__meta{color:#9db3a9;margin:0 0 36px}.tg-gi__grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.tg-gi-card{border:1px solid var(--line);background:var(--panel);padding:22px}.tg-gi-card__top{display:flex;justify-content:space-between;gap:18px}.tg-gi-card span,.tg-gi-card small{color:#9db3a9;text-transform:uppercase;letter-spacing:.1em;font-size:10px}.tg-gi-card h3{font:400 24px/1.05 Georgia,serif;margin:7px 0}.tg-gi-card strong{color:var(--mint);font:400 42px/1 Georgia,serif}.tg-gi-card p{line-height:1.5;color:#cfddd6}.tg-gi-card__sources{border-top:1px solid var(--line);margin-top:14px;padding-top:10px;font-size:11px;color:#9db3a9}@media(max-width:900px){.tg-gi__grid{grid-template-columns:1fr 1fr}}@media(max-width:620px){.tg-gi__grid{grid-template-columns:1fr}}
+    .tg-gear-intel{--tg-ink:#10100d;--tg-paper:#fff;--tg-soft:#f6f4ee;--tg-line:#ddd8cc;--tg-green:#176532;--tg-gold:#c58e35;color:var(--tg-ink);background:var(--tg-paper);font-family:Georgia,'Times New Roman',serif;padding:clamp(28px,5vw,72px) 0}.tg-gear-intel *{box-sizing:border-box}.tg-gi-wrap{width:min(1120px,calc(100% - 36px));margin:auto}.tg-gi-kicker{font:500 10px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.14em;text-transform:uppercase;color:#69716d}.tg-gear-intel h1{font:400 clamp(38px,6vw,66px)/1.02 Georgia,serif;letter-spacing:-.035em;margin:24px 0 14px}.tg-gi-lede{border-left:2px solid var(--tg-gold);padding:2px 0 2px 18px;max-width:900px;font-size:clamp(16px,2.1vw,22px);line-height:1.55;font-style:italic;color:#45433e}.tg-gi-meta{font:400 10px/1.8 ui-monospace,SFMono-Regular,Menlo,monospace;color:#737871;margin:28px 0 32px;padding-bottom:26px;border-bottom:1px solid var(--tg-line)}.tg-gear-intel h2{font:400 clamp(28px,4vw,40px)/1.1 Georgia,serif;margin:0 0 14px}.tg-gi-table-wrap{overflow-x:auto}.tg-gear-intel table{border-collapse:collapse;width:100%;table-layout:fixed}.tg-gear-intel thead{background:var(--tg-soft)}.tg-gear-intel th{font:600 9px/1.3 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.12em;text-transform:uppercase;color:#74756f;text-align:left;padding:12px 14px;border-bottom:1px solid var(--tg-line)}.tg-gear-intel th:nth-child(1){width:7%}.tg-gear-intel th:nth-child(2){width:57%}.tg-gear-intel th:nth-child(3){width:22%}.tg-gear-intel th:nth-child(4){width:14%}.tg-gear-intel td{padding:15px 14px;border-bottom:1px solid #e8e4db;vertical-align:top;font-size:14px}.tg-gear-intel td strong{display:block;font-weight:400;font-size:16px}.tg-gear-intel td span{display:block;margin-top:7px;color:#6d6a63;font-size:12px;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.tg-gear-intel td em{display:inline-block;background:#f0eee7;padding:4px 7px;font:400 9px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:#6d706b;font-style:normal}.tg-gear-intel td b{color:var(--tg-green);font-size:19px;font-weight:400}.tg-gi-note{margin-top:28px;padding:18px;background:var(--tg-soft);font-size:13px;line-height:1.55;color:#5f5c55}.tg-gi-note strong{color:var(--tg-green)}@media(max-width:700px){.tg-gear-intel th:nth-child(2){width:55%}.tg-gear-intel th:nth-child(3){width:28%}.tg-gear-intel th:nth-child(1){width:8%}.tg-gear-intel th:nth-child(4){width:12%}.tg-gear-intel td,.tg-gear-intel th{padding:11px 8px}.tg-gear-intel td span{display:none}.tg-gear-intel td strong{font-size:14px}}
   </style>
-  <div class="tg-gi__eyebrow">TrailGenic™ Gear Intelligence · ${esc(report.quarter)}</div>
-  <h2 id="tg-gi-title">${esc(report.title)}</h2>
-  <p class="tg-gi__meta">${report.products.length} editorial assessments · Evidence through ${esc(report.evidenceCutoff)} · ${esc(report.rubricVersion)}</p>
-  <p class="tg-gi__meta">TG Score is TrailGenic’s subjective editorial assessment—not a universal or independently reproducible performance measurement.</p>
-  <div class="tg-gi__grid">${cards}</div>
+  <div class="tg-gi-wrap">
+    <div class="tg-gi-kicker">By Mike Ye × Ella (AI) · TrailGenic™ Gear Intelligence · ${esc(shownQuarter)}</div>
+    <h1 id="tg-gear-intel-title">Gear Intelligence Report — ${esc(shownQuarter)}</h1>
+    <p class="tg-gi-lede">${products.length} products scored through the TrailGenic longevity lens. Not consumer preference—fasted high-altitude performance, metabolic efficiency, and protocol fit.</p>
+    <div class="tg-gi-meta">Analysis date: ${esc(report.evidenceCutoff)} &nbsp;·&nbsp; Products: ${products.length} &nbsp;·&nbsp; Categories: ${new Set(products.map((product) => product.categoryKey)).size} &nbsp;·&nbsp; Sources: ${esc(sourceLine(report))} &nbsp;·&nbsp; Dataset: mcp.trailgenic.com/datasets/gear/intel</div>
+    <h2>Full Rankings</h2>
+    <div class="tg-gi-table-wrap">
+      <table>
+        <thead><tr><th>#</th><th>Product</th><th>Category</th><th>TG Score</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    <div class="tg-gi-note"><strong>Methodology:</strong> TG Scores are TrailGenic’s subjective house assessment, applying our longevity, fasted-hiking, altitude, recovery, and protocol-fit priorities to public product and review signals.</div>
+  </div>
 </section>
-<!-- /TrailGenic Gear Intelligence Hub Embed v2.0.0 -->`;
+<!-- /TrailGenic Gear Intelligence — Full Webflow HTML Embed v3.0.0 -->`;
 }
