@@ -1,14 +1,9 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { getPool } from '../../src/db/client.js';
-import { handleError, json, requireMethod } from '../../src/http.js';
+import { handleError, json, requireCron, requireMethod } from '../../src/http.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (!requireMethod(req, res, ['GET', 'POST'])) return;
-  const expected = process.env.CRON_SECRET;
-  if (!expected || req.headers.authorization !== `Bearer ${expected}`) {
-    json(res, 401, { error: 'Unauthorized' });
-    return;
-  }
+  if (!requireMethod(req, res, ['GET', 'POST']) || !requireCron(req, res)) return;
   try {
     const result = await getPool().query(`
       UPDATE products p SET status='stale', updated_at=now()

@@ -130,6 +130,7 @@ Operator endpoints require `Authorization: Bearer $ADMIN_API_TOKEN`:
 | `POST` | `/api/discovery/promote` | Promote a reviewed candidate to the catalog |
 | `POST` | `/api/products` | Add or update a product version manually |
 | `POST` | `/api/evidence/import` | Retrieve a real source and extract claims |
+| `GET` | `/api/evidence/queue` | Inspect queued, completed, and failed source imports |
 | `GET` | `/api/evidence/list?productVersionId=` | Inspect extracted and reviewed evidence |
 | `POST` | `/api/evidence/verify` | Verify, reject, or mark evidence conflicting |
 | `POST` | `/api/assessments/create` | Deterministically assess from verified evidence |
@@ -143,6 +144,7 @@ Scheduled endpoints use `Authorization: Bearer $CRON_SECRET`:
 |---|---|---|
 | `/api/jobs/discovery` | Weekly | Search for current and trending products with source records |
 | `/api/jobs/freshness` | Weekly | Mark products stale when verified evidence ages beyond 180 days |
+| `/api/jobs/evidence` | Daily | Import up to two queued product sources with bounded retries |
 
 ## Scoring and confidence
 

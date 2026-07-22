@@ -141,11 +141,23 @@ export async function saveSourceExtraction(input: {
       const inserted = await client.query({
         text: `INSERT INTO evidence_items
                  (product_version_id, source_snapshot_id, dimension_key, claim, excerpt, signal, strength, reliability, applicability, limitations)
-               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+               ON CONFLICT DO NOTHING RETURNING id`,
         values: [input.productVersionId, snapshotId, claim.dimensionKey, claim.claim, claim.excerpt,
           claim.signal, claim.strength, input.reliability, claim.applicability, claim.limitations]
       });
-      evidenceIds.push(inserted.rows[0]?.id as string);
+      let evidenceId = inserted.rows[0]?.id as string | undefined;
+      if (!evidenceId) {
+        const existing = await client.query({
+          text: `SELECT id FROM evidence_items
+                 WHERE product_version_id=$1 AND source_snapshot_id=$2 AND dimension_key=$3 AND md5(claim)=md5($4)
+                 ORDER BY created_at LIMIT 1`,
+          values: [input.productVersionId, snapshotId, claim.dimensionKey, claim.claim]
+        });
+        evidenceId = existing.rows[0]?.id as string | undefined;
+      }
+      if (!evidenceId) throw new Error('Evidence claim could not be persisted');
+      evidenceIds.push(evidenceId);
     }
     return { sourceId, snapshotId, evidenceIds };
   });

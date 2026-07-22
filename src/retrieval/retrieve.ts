@@ -68,7 +68,7 @@ export async function retrieveSource(rawUrl: string, manufacturerUrl?: string | 
     throw new Error('Source hostname resolves to a private network');
   }
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 20_000);
+  const timeout = setTimeout(() => controller.abort(), 12_000);
   try {
     const response = await fetch(url, {
       signal: controller.signal,

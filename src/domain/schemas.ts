@@ -11,6 +11,7 @@ export type CategoryKey = z.infer<typeof CategoryKeySchema>;
 export const ProductStatusSchema = z.enum(['candidate', 'active', 'stale', 'discontinued', 'rejected']);
 export const EvidenceStateSchema = z.enum(['unverified', 'verified', 'conflicting', 'rejected']);
 export const SourceTypeSchema = z.enum(['manufacturer', 'expert_review', 'community', 'scientific', 'operator_note']);
+export type SourceType = z.infer<typeof SourceTypeSchema>;
 export const EvidenceSignalSchema = z.enum(['positive', 'negative', 'neutral', 'conditional']);
 
 export const ProductInputSchema = z.object({

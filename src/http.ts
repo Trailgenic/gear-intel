@@ -29,6 +29,22 @@ export function requireAdmin(req: VercelRequest, res: VercelResponse): boolean {
   return true;
 }
 
+export function requireCron(req: VercelRequest, res: VercelResponse): boolean {
+  const expected = process.env.CRON_SECRET;
+  if (!expected) {
+    json(res, 503, { error: 'Cron jobs are not configured' });
+    return false;
+  }
+  const supplied = req.headers.authorization?.replace(/^Bearer\s+/i, '');
+  const suppliedBuffer = Buffer.from(supplied ?? '');
+  const expectedBuffer = Buffer.from(expected);
+  if (suppliedBuffer.length !== expectedBuffer.length || !timingSafeEqual(suppliedBuffer, expectedBuffer)) {
+    json(res, 401, { error: 'Unauthorized' });
+    return false;
+  }
+  return true;
+}
+
 export function handleError(res: VercelResponse, error: unknown): void {
   if (error instanceof ZodError) {
     json(res, 400, { error: 'Invalid request', details: error.flatten() });

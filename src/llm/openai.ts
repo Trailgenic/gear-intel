@@ -62,7 +62,7 @@ export class OpenAIEvidenceProvider implements EvidenceModelProvider {
     if (!apiKey) throw new Error('OPENAI_API_KEY is required for evidence extraction');
     const model = process.env.OPENAI_EXTRACTION_MODEL ?? 'gpt-5.6-luna';
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 55_000);
+    const timeout = setTimeout(() => controller.abort(), 38_000);
     try {
       const response = await fetch('https://api.openai.com/v1/responses', {
         method: 'POST',

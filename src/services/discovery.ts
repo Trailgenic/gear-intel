@@ -5,6 +5,7 @@ import {
   type DiscoveryCandidate
 } from '../domain/schemas.js';
 import { getPool, withTransaction } from '../db/client.js';
+import { enqueueCandidateSources } from './evidence-queue.js';
 
 const promptVersion = 'product-discovery-v3';
 const blockedEvidenceHosts = new Set(['sec.gov', 'www.sec.gov']);
@@ -161,7 +162,10 @@ export async function listCandidates() {
   return result.rows;
 }
 
-function reviewedCandidate(candidate: Record<string, unknown>, review: CandidateReview): DiscoveryCandidate {
+function reviewedCandidate(
+  candidate: Record<string, unknown>,
+  review: CandidateReview
+): DiscoveryCandidate & { officialUrl: string } {
   const corrections = review.corrections;
   const effective = DiscoveryCandidateSchema.parse({
     categoryKey: corrections.categoryKey ?? candidate.category_key,
@@ -220,6 +224,7 @@ export async function reviewCandidates(reviews: CandidateReview[]) {
           values: [product.rows[0]?.id, effective.modelVersion, `${effective.brand} ${effective.productName}`, effective.officialUrl]
         });
         productVersionId = version.rows[0]?.id as string;
+        await enqueueCandidateSources(client, productVersionId, effective.officialUrl, effective.evidenceUrls);
       }
 
       await client.query({
