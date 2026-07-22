@@ -86,6 +86,8 @@ export async function runEditorialPipeline(triggerType: TriggerType = 'scheduled
 }
 
 export async function getLatestPipelineStatus() {
+  const table = await getPool().query(`SELECT to_regclass('public.pipeline_runs') AS relation`);
+  if (!table.rows[0]?.relation) return null;
   const result = await getPool().query(`SELECT id,status,stage,metrics,exceptions,started_at,completed_at FROM pipeline_runs ORDER BY started_at DESC LIMIT 1`);
   return result.rows[0] ?? null;
 }
