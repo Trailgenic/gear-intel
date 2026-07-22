@@ -1,5 +1,16 @@
 # Operating Gear Intelligence
 
+## First deployment
+
+After the production environment variables are configured, initialize the database once through the protected endpoint:
+
+```bash
+curl -X POST https://YOUR_DEPLOYMENT/api/admin/initialize \
+  -H "Authorization: Bearer $ADMIN_API_TOKEN"
+```
+
+The operation is idempotent. It reports applied or previously applied migrations and reseeds the current rubric definitions and legacy candidates without duplicating them.
+
 ## Product lifecycle
 
 ```text

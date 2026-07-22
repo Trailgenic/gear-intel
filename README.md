@@ -124,6 +124,7 @@ Operator endpoints require `Authorization: Bearer $ADMIN_API_TOKEN`:
 
 | Method | Endpoint | Purpose |
 |---|---|---|
+| `POST` | `/api/admin/initialize` | Idempotently apply migrations and seed rubrics/candidates |
 | `GET` | `/api/discovery/candidates` | Review pending current/trending candidates |
 | `POST` | `/api/discovery/promote` | Promote a reviewed candidate to the catalog |
 | `POST` | `/api/products` | Add or update a product version manually |
