@@ -21,4 +21,9 @@ describe('source URL validation', () => {
     process.env.SOURCE_HOST_ALLOWLIST = '';
     expect(validateSourceUrl('https://brand.example/products/one', 'https://brand.example/').hostname).toBe('brand.example');
   });
+
+  it('allows a curated independent evidence host without environment configuration', () => {
+    process.env.SOURCE_HOST_ALLOWLIST = '';
+    expect(validateSourceUrl('https://runrepeat.com/nike-acg-ultrafly-trail').hostname).toBe('runrepeat.com');
+  });
 });

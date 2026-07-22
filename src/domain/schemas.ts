@@ -92,6 +92,31 @@ export const DiscoveryOutputSchema = z.object({
 
 export type DiscoveryCandidate = z.infer<typeof DiscoveryCandidateSchema>;
 
+export const CandidateCorrectionsSchema = z.object({
+  categoryKey: CategoryKeySchema.optional(),
+  brand: z.string().trim().min(1).max(120).optional(),
+  productName: z.string().trim().min(1).max(240).optional(),
+  modelVersion: z.string().trim().min(1).max(120).optional(),
+  officialUrl: z.string().url().nullable().optional(),
+  rationale: z.string().trim().min(1).max(1200).optional(),
+  evidenceUrls: z.array(z.string().url()).min(2).max(8).optional(),
+  trendSignals: z.array(z.string().trim().min(1).max(300)).min(1).max(8).optional()
+}).strict();
+
+export const CandidateReviewSchema = z.object({
+  candidateId: z.string().uuid(),
+  decision: z.enum(['accepted', 'held', 'rejected', 'duplicate']),
+  reviewer: z.string().trim().min(1).max(160),
+  note: z.string().trim().max(3000).default(''),
+  corrections: CandidateCorrectionsSchema.default({})
+});
+
+export const CandidateReviewBatchSchema = z.object({
+  reviews: z.array(CandidateReviewSchema).min(1).max(40)
+});
+
+export type CandidateReview = z.infer<typeof CandidateReviewSchema>;
+
 export const PromoteCandidateSchema = z.object({
   candidateId: z.string().uuid(),
   reviewer: z.string().trim().min(1).max(160)

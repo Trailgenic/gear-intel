@@ -1,7 +1,13 @@
-import { DiscoveryOutputSchema, type DiscoveryCandidate } from '../domain/schemas.js';
+import {
+  DiscoveryCandidateSchema,
+  DiscoveryOutputSchema,
+  type CandidateReview,
+  type DiscoveryCandidate
+} from '../domain/schemas.js';
 import { getPool, withTransaction } from '../db/client.js';
 
-const promptVersion = 'product-discovery-v2';
+const promptVersion = 'product-discovery-v3';
+const blockedEvidenceHosts = new Set(['sec.gov', 'www.sec.gov']);
 
 const discoverySchema = {
   type: 'object', additionalProperties: false, required: ['candidates'],
@@ -35,6 +41,38 @@ function collectSourceUrls(value: unknown, urls = new Set<string>()): Set<string
   return urls;
 }
 
+function normalizeUrl(rawUrl: string): string {
+  const url = new URL(rawUrl);
+  url.hash = '';
+  for (const key of [...url.searchParams.keys()]) {
+    if (key.toLowerCase().startsWith('utm_') || key.toLowerCase() === 'srsltid') url.searchParams.delete(key);
+  }
+  url.searchParams.sort();
+  return url.toString();
+}
+
+function verifiedCandidate(candidate: DiscoveryCandidate, consultedRaw: Set<string>): DiscoveryCandidate | null {
+  const consulted = new Set([...consultedRaw].map(normalizeUrl));
+  const officialUrl = candidate.officialUrl ? normalizeUrl(candidate.officialUrl) : null;
+  const evidenceUrls = [...new Set(candidate.evidenceUrls.map(normalizeUrl)
+    .filter((url) => consulted.has(url) && !blockedEvidenceHosts.has(new URL(url).hostname.toLowerCase())))];
+  if (officialUrl && consulted.has(officialUrl) && !evidenceUrls.includes(officialUrl)) evidenceUrls.unshift(officialUrl);
+  if (evidenceUrls.length < 2) return null;
+  const hosts = new Set(evidenceUrls.map((url) => new URL(url).hostname.toLowerCase()));
+  if (hosts.size < 2) return null;
+  if (officialUrl) {
+    if (!evidenceUrls.includes(officialUrl)) return null;
+    const officialHost = new URL(officialUrl).hostname.toLowerCase();
+    if (![...hosts].some((host) => host !== officialHost)) return null;
+  }
+  return DiscoveryCandidateSchema.parse({
+    ...candidate,
+    officialUrl,
+    evidenceUrls,
+    trendScore: Math.round(candidate.trendScore / 5) * 5
+  });
+}
+
 export async function discoverProducts(): Promise<{ runId: string; candidates: number; model: string }> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error('OPENAI_API_KEY is required for product discovery');
@@ -54,10 +92,13 @@ export async function discoverProducts(): Promise<{ runId: string; candidates: n
         tools: [{ type: 'web_search' }],
         tool_choice: 'auto',
         include: ['web_search_call.action.sources'],
-        instructions: `Find current or newly released hiking products with credible momentum and plausible relevance to the TrailGenic Method.
-Search all eight categories. Prefer current manufacturer pages plus independent expert or community signals. Return no more than four strong candidates per category.
-Trend score measures freshness and current attention only. It must never represent protocol fit. Do not score TrailGenic suitability.
-Every candidate requires at least two recent evidence URLs where possible, including an official page when available. Do not invent URLs, product versions, specifications, or release dates.`,
+        instructions: `Find current hiking products with credible recent attention and plausible relevance to the TrailGenic Method.
+Search all eight categories. Return no more than four strong candidates per category.
+Use an exact current manufacturer product page plus at least one independent page that explicitly names and discusses that exact product. Never use a generic category page, search page, corporate filing, quick-start index, or source that merely discusses the brand or category.
+Use an exact release year, generation, or manufacturer model identifier for modelVersion. Never call an older product new or label a version merely "current model". Distinguish a genuine release from an established product receiving new independent testing.
+Every material, weight, formulation, and performance statement must be supported by the supplied exact-product URLs. If sources conflict, say so in rationale rather than resolving the conflict yourself.
+Trend score is rough discovery priority only: use increments of five. It never represents protocol fit, product quality, or an endorsement. Do not score TrailGenic suitability.
+Do not invent URLs, model names, specifications, release dates, testing, or popularity. Omit a candidate if exact-product evidence is inadequate.`,
         input: `Run a current product-discovery scan as of ${new Date().toISOString().slice(0,10)} for backpacks, trail shoes, insulation, trekking poles, electrolytes, hydration systems, shells/rain protection, and headlamps.`,
         text: { format: { type: 'json_schema', name: 'trailgenic_product_discovery', strict: true, schema: discoverySchema } },
         max_output_tokens: 7000
@@ -76,8 +117,8 @@ Every candidate requires at least two recent evidence URLs where possible, inclu
     const parsed = DiscoveryOutputSchema.parse(JSON.parse(outputText));
     const consulted = collectSourceUrls(payload.output);
     const candidates = parsed.candidates
-      .map((candidate) => ({ ...candidate, evidenceUrls: candidate.evidenceUrls.filter((url) => consulted.has(url)) }))
-      .filter((candidate) => candidate.evidenceUrls.length > 0);
+      .map((candidate) => verifiedCandidate(candidate, consulted))
+      .filter((candidate): candidate is DiscoveryCandidate => candidate !== null);
     if (!candidates.length) throw new Error('Discovery produced no source-grounded candidates');
     await saveCandidates(runId, candidates, payload.usage);
     return { runId, candidates: candidates.length, model: payload.model ?? model };
@@ -116,31 +157,83 @@ async function saveCandidates(
 }
 
 export async function listCandidates() {
-  const result = await getPool().query(`SELECT * FROM product_candidates WHERE status='pending' ORDER BY trend_score DESC,created_at DESC`);
+  const result = await getPool().query(`SELECT * FROM product_candidates WHERE status IN ('pending','held') ORDER BY trend_score DESC,created_at DESC`);
   return result.rows;
 }
 
-export async function promoteCandidate(candidateId: string, reviewer: string): Promise<string> {
-  return withTransaction(async (client) => {
-    const result = await client.query('SELECT * FROM product_candidates WHERE id=$1 AND status=$2 FOR UPDATE', [candidateId, 'pending']);
-    const candidate = result.rows[0];
-    if (!candidate) throw new Error('Pending candidate not found');
-    const category = await client.query('SELECT id FROM categories WHERE key=$1', [candidate.category_key]);
-    const categoryId = category.rows[0]?.id as string | undefined;
-    if (!categoryId) throw new Error('Candidate category is not configured');
-    const product = await client.query({
-      text: `INSERT INTO products (brand,product_family,category_id,status) VALUES ($1,$2,$3,'candidate')
-             ON CONFLICT (brand,product_family,category_id) DO UPDATE SET updated_at=now() RETURNING id`,
-      values: [candidate.brand,candidate.product_name,categoryId]
-    });
-    const version = await client.query({
-      text: `INSERT INTO product_versions (product_id,model_version,display_name,manufacturer_url)
-             VALUES ($1,$2,$3,$4)
-             ON CONFLICT (product_id,model_version) DO UPDATE SET manufacturer_url=EXCLUDED.manufacturer_url,updated_at=now()
-             RETURNING id`,
-      values: [product.rows[0]?.id,candidate.model_version,`${candidate.brand} ${candidate.product_name}`,candidate.official_url]
-    });
-    await client.query('UPDATE product_candidates SET status=$1,reviewed_by=$2,reviewed_at=now() WHERE id=$3', ['accepted',reviewer,candidateId]);
-    return version.rows[0]?.id as string;
+function reviewedCandidate(candidate: Record<string, unknown>, review: CandidateReview): DiscoveryCandidate {
+  const corrections = review.corrections;
+  const effective = DiscoveryCandidateSchema.parse({
+    categoryKey: corrections.categoryKey ?? candidate.category_key,
+    brand: corrections.brand ?? candidate.brand,
+    productName: corrections.productName ?? candidate.product_name,
+    modelVersion: corrections.modelVersion ?? candidate.model_version,
+    officialUrl: corrections.officialUrl !== undefined ? corrections.officialUrl : candidate.official_url,
+    rationale: corrections.rationale ?? candidate.rationale,
+    evidenceUrls: corrections.evidenceUrls ?? candidate.evidence_urls,
+    trendSignals: corrections.trendSignals ?? candidate.trend_signals,
+    trendScore: Number(candidate.trend_score)
   });
+  if (!effective.officialUrl) throw new Error('Accepted candidate requires an exact official product URL');
+  if (/^(current|new|new\/current)(\s|$)/i.test(effective.modelVersion) || /current product line/i.test(effective.modelVersion)) {
+    throw new Error('Accepted candidate requires a specific model version');
+  }
+  const official = normalizeUrl(effective.officialUrl);
+  const evidence = effective.evidenceUrls.map(normalizeUrl);
+  if (!evidence.includes(official)) throw new Error('Accepted candidate evidence must include the official product URL');
+  const officialHost = new URL(official).hostname.toLowerCase();
+  if (!evidence.some((url) => new URL(url).hostname.toLowerCase() !== officialHost)) {
+    throw new Error('Accepted candidate requires independent exact-product evidence');
+  }
+  return { ...effective, officialUrl: official, evidenceUrls: [...new Set(evidence)] };
+}
+
+export async function reviewCandidates(reviews: CandidateReview[]) {
+  return withTransaction(async (client) => {
+    const output: Array<{ candidateId: string; decision: string; productVersionId: string | null }> = [];
+    for (const review of reviews) {
+      const result = await client.query('SELECT * FROM product_candidates WHERE id=$1 FOR UPDATE', [review.candidateId]);
+      const candidate = result.rows[0] as Record<string, unknown> | undefined;
+      if (!candidate) throw new Error('Candidate not found');
+      const currentStatus = String(candidate.status);
+      if (!['pending', 'held'].includes(currentStatus) && currentStatus !== review.decision) {
+        throw new Error(`Candidate is already ${currentStatus}`);
+      }
+
+      let productVersionId: string | null = null;
+      if (review.decision === 'accepted') {
+        const effective = reviewedCandidate(candidate, review);
+        const category = await client.query('SELECT id FROM categories WHERE key=$1', [effective.categoryKey]);
+        const categoryId = category.rows[0]?.id as string | undefined;
+        if (!categoryId) throw new Error('Candidate category is not configured');
+        const product = await client.query({
+          text: `INSERT INTO products (brand,product_family,category_id,status) VALUES ($1,$2,$3,'candidate')
+                 ON CONFLICT (brand,product_family,category_id) DO UPDATE SET updated_at=now() RETURNING id`,
+          values: [effective.brand, effective.productName, categoryId]
+        });
+        const version = await client.query({
+          text: `INSERT INTO product_versions (product_id,model_version,display_name,manufacturer_url)
+                 VALUES ($1,$2,$3,$4)
+                 ON CONFLICT (product_id,model_version) DO UPDATE SET
+                   display_name=EXCLUDED.display_name,manufacturer_url=EXCLUDED.manufacturer_url,updated_at=now()
+                 RETURNING id`,
+          values: [product.rows[0]?.id, effective.modelVersion, `${effective.brand} ${effective.productName}`, effective.officialUrl]
+        });
+        productVersionId = version.rows[0]?.id as string;
+      }
+
+      await client.query({
+        text: `UPDATE product_candidates SET status=$1,reviewed_by=$2,reviewed_at=now(),review_note=$3,review_corrections=$4 WHERE id=$5`,
+        values: [review.decision, review.reviewer, review.note, JSON.stringify(review.corrections), review.candidateId]
+      });
+      output.push({ candidateId: review.candidateId, decision: review.decision, productVersionId });
+    }
+    return output;
+  });
+}
+
+export async function promoteCandidate(candidateId: string, reviewer: string): Promise<string> {
+  const [result] = await reviewCandidates([{ candidateId, reviewer, decision: 'accepted', note: '', corrections: {} }]);
+  if (!result?.productVersionId) throw new Error('Candidate promotion failed');
+  return result.productVersionId;
 }

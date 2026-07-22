@@ -16,9 +16,34 @@ export interface RetrievedSource {
 const privateIpv4 = /^(127\.|10\.|0\.|169\.254\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/;
 const privateIpv6 = /^(::1$|fc|fd|fe8|fe9|fea|feb)/i;
 
+const trustedIndependentHosts = [
+  'outdoorgearlab.com', 'www.outdoorgearlab.com',
+  'rei.com', 'www.rei.com',
+  'reddit.com', 'www.reddit.com',
+  'trailspace.com', 'www.trailspace.com',
+  'switchbacktravel.com', 'www.switchbacktravel.com',
+  'runnersworld.com', 'www.runnersworld.com',
+  'runrepeat.com', 'www.runrepeat.com',
+  't3.com', 'www.t3.com',
+  'theguardian.com', 'www.theguardian.com',
+  'gearjunkie.com', 'www.gearjunkie.com',
+  'outdoorx4.com', 'www.outdoorx4.com',
+  'roadtrailrun.com', 'www.roadtrailrun.com',
+  'cyclingweekly.com', 'www.cyclingweekly.com',
+  'sectionhiker.com', 'www.sectionhiker.com',
+  'cleverhiker.com', 'www.cleverhiker.com',
+  'outdoorguru.com', 'www.outdoorguru.com',
+  'outdoorlife.com', 'www.outdoorlife.com',
+  'treelinereview.com', 'www.treelinereview.com',
+  'bikepacking.com', 'www.bikepacking.com'
+];
+
 function allowedHosts(): Set<string> {
-  return new Set((process.env.SOURCE_HOST_ALLOWLIST ?? '')
-    .split(',').map((host) => host.trim().toLowerCase()).filter(Boolean));
+  const hosts = new Set(trustedIndependentHosts);
+  for (const host of (process.env.SOURCE_HOST_ALLOWLIST ?? '').split(',')) {
+    if (host.trim()) hosts.add(host.trim().toLowerCase());
+  }
+  return hosts;
 }
 
 export function validateSourceUrl(rawUrl: string, manufacturerUrl?: string | null): URL {
