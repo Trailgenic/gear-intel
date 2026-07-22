@@ -4,8 +4,10 @@ const { Pool } = pg;
 let pool: pg.Pool | undefined;
 
 export function getPool(): pg.Pool {
-  const connectionString = process.env.DATABASE_URL;
-  if (!connectionString) throw new Error('DATABASE_URL is required');
+  // Vercel Postgres integrations commonly inject POSTGRES_URL. DATABASE_URL
+  // remains the explicit, portable override for any other Postgres provider.
+  const connectionString = process.env.DATABASE_URL ?? process.env.POSTGRES_URL;
+  if (!connectionString) throw new Error('DATABASE_URL or POSTGRES_URL is required');
   pool ??= new Pool({
     connectionString,
     max: 5,

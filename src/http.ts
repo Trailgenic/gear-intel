@@ -35,7 +35,7 @@ export function handleError(res: VercelResponse, error: unknown): void {
     return;
   }
   const message = error instanceof Error ? error.message : 'Unknown error';
-  if (message.includes('OPENAI_API_KEY') || message.includes('DATABASE_URL')) {
+  if (message.includes('OPENAI_API_KEY') || message.includes('DATABASE_URL') || message.includes('POSTGRES_URL')) {
     json(res, 503, { error: 'Service is not configured' });
     return;
   }

@@ -91,7 +91,8 @@ Required production variables:
 
 | Variable | Purpose |
 |---|---|
-| `DATABASE_URL` | PostgreSQL connection string |
+| `DATABASE_URL` | PostgreSQL connection string; preferred portable name |
+| `POSTGRES_URL` | Vercel Postgres connection string; used automatically when `DATABASE_URL` is absent |
 | `OPENAI_API_KEY` | Server-side model access; never exposed to the browser |
 | `ADMIN_API_TOKEN` | Bearer token required for every mutating or private operator API |
 | `CRON_SECRET` | Authorization for scheduled discovery and freshness jobs |
