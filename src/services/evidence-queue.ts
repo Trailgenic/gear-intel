@@ -41,13 +41,14 @@ export async function enqueueCandidateSources(
   }
 }
 
-async function claimJobs(limit: number): Promise<EvidenceQueueJob[]> {
+async function claimJobs(limit: number, jobId?: string): Promise<EvidenceQueueJob[]> {
   return withTransaction(async (client) => {
     const result = await client.query({
       text: `WITH next_jobs AS (
                SELECT id FROM evidence_import_queue
                WHERE (status IN ('queued','failed') OR (status='running' AND started_at < now() - interval '10 minutes'))
                  AND attempts < 3
+                 AND ($2::uuid IS NULL OR id=$2::uuid)
                ORDER BY CASE status WHEN 'queued' THEN 0 ELSE 1 END, created_at
                LIMIT $1 FOR UPDATE SKIP LOCKED
              )
@@ -57,7 +58,7 @@ async function claimJobs(limit: number): Promise<EvidenceQueueJob[]> {
              WHERE queue.id=next_jobs.id
              RETURNING queue.id,queue.product_version_id,queue.url,queue.source_type,
                        queue.published_at::text,queue.evidence_cutoff::text`,
-      values: [limit]
+      values: [limit, jobId ?? null]
     });
     return result.rows as EvidenceQueueJob[];
   });
@@ -83,8 +84,8 @@ async function failJob(id: string, error: unknown): Promise<string> {
   return message;
 }
 
-export async function processEvidenceQueue(limit: number) {
-  const jobs = await claimJobs(limit);
+export async function processEvidenceQueue(limit: number, jobId?: string) {
+  const jobs = await claimJobs(limit, jobId);
   const results = await Promise.all(jobs.map(async (job) => {
     try {
       const imported = await importEvidence({

@@ -13,6 +13,35 @@ export interface RetrievedSource {
   retrievedAt: string;
 }
 
+const maxSourceBytes = 6_000_000;
+
+export async function readResponseTextWithLimit(response: Response, limit = maxSourceBytes): Promise<string> {
+  if (!response.body) throw new Error('Source response did not contain a body');
+  const declaredLength = Number(response.headers.get('content-length') ?? 0);
+  if (declaredLength > limit) throw new Error(`Source exceeds the ${Math.round(limit / 1_000_000)} MB retrieval limit`);
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let bytes = 0;
+  let text = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    bytes += value.byteLength;
+    if (bytes > limit) {
+      await reader.cancel();
+      throw new Error(`Source exceeds the ${Math.round(limit / 1_000_000)} MB retrieval limit`);
+    }
+    text += decoder.decode(value, { stream: true });
+  }
+  return text + decoder.decode();
+}
+
+function stripNonContentMarkup(html: string): string {
+  return html
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<(style|noscript|svg|template)\b[^>]*>[\s\S]*?<\/\1>/gi, '');
+}
+
 const privateIpv4 = /^(127\.|10\.|0\.|169\.254\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/;
 const privateIpv6 = /^(::1$|fc|fd|fe8|fe9|fea|feb)/i;
 
@@ -78,10 +107,7 @@ export async function retrieveSource(rawUrl: string, manufacturerUrl?: string | 
     if (!response.ok) throw new Error(`Source retrieval failed (${response.status})`);
     const contentType = response.headers.get('content-type') ?? '';
     if (!contentType.includes('text/html')) throw new Error(`Unsupported source content type: ${contentType}`);
-    const length = Number(response.headers.get('content-length') ?? 0);
-    if (length > 2_000_000) throw new Error('Source exceeds the 2 MB retrieval limit');
-    const html = await response.text();
-    if (html.length > 2_000_000) throw new Error('Source exceeds the 2 MB retrieval limit');
+    const html = stripNonContentMarkup(await readResponseTextWithLimit(response));
     const dom = new JSDOM(html, { url: url.toString() });
     const article = new Readability(dom.window.document).parse();
     const text = (article?.textContent ?? dom.window.document.body?.textContent ?? '')
