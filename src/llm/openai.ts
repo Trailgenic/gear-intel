@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { EvidenceExtractionSchema } from '../domain/schemas.js';
 import type { EvidenceModelProvider, ExtractionRequest, ExtractionResponse } from './provider.js';
 
-const promptVersion = 'evidence-extraction-v3-segment-citations';
+const promptVersion = 'evidence-extraction-v4-claim-basis';
 
 interface SourceSegment {
   id: string;
@@ -38,6 +38,10 @@ const modelExtractionSchema = z.object({
     dimensionKey: z.string().min(1).max(80),
     claim: z.string().min(1).max(1000),
     sourceSegmentId: z.string().regex(/^S\d{4}$/),
+    claimBasis: z.enum([
+      'specification', 'manufacturer_claim', 'independent_observation',
+      'controlled_test', 'community_report', 'operator_observation'
+    ]),
     signal: z.enum(['positive', 'negative', 'neutral', 'conditional']),
     strength: z.number().int().min(1).max(5),
     applicability: z.number().min(0).max(1),
@@ -59,11 +63,15 @@ const evidenceJsonSchema = {
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['dimensionKey', 'claim', 'sourceSegmentId', 'signal', 'strength', 'applicability', 'limitations'],
+        required: ['dimensionKey', 'claim', 'sourceSegmentId', 'claimBasis', 'signal', 'strength', 'applicability', 'limitations'],
         properties: {
           dimensionKey: { type: 'string' },
           claim: { type: 'string' },
           sourceSegmentId: { type: 'string', pattern: '^S\\d{4}$' },
+          claimBasis: {
+            type: 'string',
+            enum: ['specification','manufacturer_claim','independent_observation','controlled_test','community_report','operator_observation']
+          },
           signal: { type: 'string', enum: ['positive', 'negative', 'neutral', 'conditional'] },
           strength: { type: 'integer', minimum: 1, maximum: 5 },
           applicability: { type: 'number', minimum: 0, maximum: 1 },
@@ -79,6 +87,13 @@ function buildInstructions(request: ExtractionRequest): string {
   const dimensions = request.rubric.dimensions
     .map((dimension) => `- ${dimension.key}: ${dimension.description}`)
     .join('\n');
+  const allowedBasisBySource: Record<string, string> = {
+    manufacturer: 'specification or manufacturer_claim',
+    expert_review: 'specification, independent_observation, or controlled_test',
+    scientific: 'specification or controlled_test',
+    community: 'community_report',
+    operator_note: 'specification or operator_observation'
+  };
   return `You extract auditable evidence for TrailGenic Gear Intelligence.
 
 Rules:
@@ -88,12 +103,18 @@ Rules:
 3. Match claims only to the listed rubric dimension keys.
 4. Mark the product match accurately. If the page concerns another generation or ambiguous model, use family, uncertain, or mismatch.
 5. Signal describes protocol fit, not general consumer popularity.
-6. Keep claims atomic enough to be supported by one source segment. Record uncertainty and conflicts explicitly.
-7. Do not calculate a product score or ranking.
+6. Set claimBasis accurately: specification for a directly stated fact; manufacturer_claim for maker performance language;
+   independent_observation for a reviewer's field observation; controlled_test only for a documented repeatable test;
+   community_report for an individual community report; operator_observation only for an operator-authored note.
+7. Never infer that the full page omits a fact from one segment. Do not create absence claims.
+8. Keep claims atomic enough to be supported by one source segment. Record uncertainty and conflicts explicitly.
+9. Do not calculate a product score or ranking.
 
 Product: ${request.product.displayName}
 Brand: ${request.product.brand}
 Model/version: ${request.product.modelVersion}
+Source type: ${request.source.sourceType}
+Allowed claimBasis values for this source: ${allowedBasisBySource[request.source.sourceType] ?? 'none'}
 TrailGenic use case: ${request.rubric.useCase}
 Rubric dimensions:
 ${dimensions}`;
@@ -155,6 +176,7 @@ export class OpenAIEvidenceProvider implements EvidenceModelProvider {
             dimensionKey: claim.dimensionKey,
             claim: claim.claim,
             excerpt,
+            claimBasis: claim.claimBasis,
             signal: claim.signal,
             strength: claim.strength,
             applicability: claim.applicability,

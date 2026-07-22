@@ -109,12 +109,13 @@ export async function saveSourceExtraction(input: {
   publishedAt?: string;
   evidenceCutoff?: string;
   contentHash: string;
+  provider: string;
   model: string;
   promptVersion: string;
   usage?: { inputTokens?: number; outputTokens?: number };
   extraction: EvidenceExtraction;
   reliability: number;
-}): Promise<{ sourceId: string; snapshotId: string; evidenceIds: string[] }> {
+}): Promise<{ sourceId: string; snapshotId: string; extractionId: string; evidenceIds: string[] }> {
   return withTransaction(async (client) => {
     const source = await client.query({
       text: `INSERT INTO sources (url, publisher, source_type, title, published_at, last_retrieved_at)
@@ -129,37 +130,52 @@ export async function saveSourceExtraction(input: {
       text: `INSERT INTO source_snapshots
                (source_id, content_hash, evidence_cutoff, http_status, extraction_model, prompt_version, input_tokens, output_tokens, metadata)
              VALUES ($1,$2,$3,200,$4,$5,$6,$7,$8)
-             ON CONFLICT (source_id, content_hash) DO UPDATE SET metadata=EXCLUDED.metadata
+             ON CONFLICT (source_id, content_hash) DO UPDATE SET content_hash=source_snapshots.content_hash
              RETURNING id`,
       values: [sourceId, input.contentHash, input.evidenceCutoff ?? null, input.model, input.promptVersion,
         input.usage?.inputTokens ?? null, input.usage?.outputTokens ?? null,
         JSON.stringify({ productMatch: input.extraction.productMatch, conflictsOrWarnings: input.extraction.conflictsOrWarnings })]
     });
     const snapshotId = snapshot.rows[0]?.id as string;
+    const extraction = await client.query({
+      text: `INSERT INTO evidence_extractions
+               (product_version_id,source_snapshot_id,provider,model,prompt_version,product_match,
+                source_summary,warnings,input_tokens,output_tokens)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+             ON CONFLICT (product_version_id,source_snapshot_id,provider,model,prompt_version) DO UPDATE SET
+               product_match=EXCLUDED.product_match,source_summary=EXCLUDED.source_summary,
+               warnings=EXCLUDED.warnings,input_tokens=EXCLUDED.input_tokens,output_tokens=EXCLUDED.output_tokens
+             RETURNING id`,
+      values: [input.productVersionId,snapshotId,input.provider,input.model,input.promptVersion,
+        input.extraction.productMatch,input.extraction.sourceSummary,
+        JSON.stringify(input.extraction.conflictsOrWarnings),input.usage?.inputTokens ?? null,input.usage?.outputTokens ?? null]
+    });
+    const extractionId = extraction.rows[0]?.id as string;
     const evidenceIds: string[] = [];
     for (const claim of input.extraction.claims) {
       const inserted = await client.query({
         text: `INSERT INTO evidence_items
-                 (product_version_id, source_snapshot_id, dimension_key, claim, excerpt, signal, strength, reliability, applicability, limitations)
-               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+                 (product_version_id,source_snapshot_id,extraction_id,dimension_key,claim,excerpt,claim_basis,
+                  signal,strength,reliability,applicability,limitations)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
                ON CONFLICT DO NOTHING RETURNING id`,
-        values: [input.productVersionId, snapshotId, claim.dimensionKey, claim.claim, claim.excerpt,
-          claim.signal, claim.strength, input.reliability, claim.applicability, claim.limitations]
+        values: [input.productVersionId,snapshotId,extractionId,claim.dimensionKey,claim.claim,claim.excerpt,claim.claimBasis,
+          claim.signal,claim.strength,input.reliability,claim.applicability,claim.limitations]
       });
       let evidenceId = inserted.rows[0]?.id as string | undefined;
       if (!evidenceId) {
         const existing = await client.query({
           text: `SELECT id FROM evidence_items
-                 WHERE product_version_id=$1 AND source_snapshot_id=$2 AND dimension_key=$3 AND md5(claim)=md5($4)
+                 WHERE extraction_id=$1 AND dimension_key=$2 AND md5(claim)=md5($3)
                  ORDER BY created_at LIMIT 1`,
-          values: [input.productVersionId, snapshotId, claim.dimensionKey, claim.claim]
+          values: [extractionId, claim.dimensionKey, claim.claim]
         });
         evidenceId = existing.rows[0]?.id as string | undefined;
       }
       if (!evidenceId) throw new Error('Evidence claim could not be persisted');
       evidenceIds.push(evidenceId);
     }
-    return { sourceId, snapshotId, evidenceIds };
+    return { sourceId, snapshotId, extractionId, evidenceIds };
   });
 }
 
@@ -286,12 +302,15 @@ export async function verifyEvidence(input: {
 
 export async function listEvidence(productVersionId: string) {
   const result = await getPool().query({
-    text: `SELECT ei.id,ei.dimension_key,ei.claim,ei.excerpt,ei.signal,ei.strength,ei.reliability,ei.applicability,
+    text: `SELECT ei.id,ei.dimension_key,ei.claim,ei.excerpt,ei.claim_basis,ei.signal,ei.strength,ei.reliability,ei.applicability,
                   ei.limitations,ei.verification_state,ei.verified_by,ei.verified_at,
-                  s.url,s.publisher,s.title,s.source_type,s.published_at,ss.retrieved_at
+                  s.url,s.publisher,s.title,s.source_type,s.published_at,ss.retrieved_at,
+                  extraction.id AS extraction_id,extraction.provider,extraction.model,extraction.prompt_version,
+                  extraction.product_match,extraction.source_summary,extraction.warnings
            FROM evidence_items ei
            JOIN source_snapshots ss ON ss.id=ei.source_snapshot_id
            JOIN sources s ON s.id=ss.source_id
+           JOIN evidence_extractions extraction ON extraction.id=ei.extraction_id
            WHERE ei.product_version_id=$1
            ORDER BY s.publisher,ei.dimension_key,ei.created_at`,
     values: [productVersionId]

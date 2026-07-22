@@ -13,6 +13,11 @@ export const EvidenceStateSchema = z.enum(['unverified', 'verified', 'conflictin
 export const SourceTypeSchema = z.enum(['manufacturer', 'expert_review', 'community', 'scientific', 'operator_note']);
 export type SourceType = z.infer<typeof SourceTypeSchema>;
 export const EvidenceSignalSchema = z.enum(['positive', 'negative', 'neutral', 'conditional']);
+export const ClaimBasisSchema = z.enum([
+  'specification', 'manufacturer_claim', 'independent_observation',
+  'controlled_test', 'community_report', 'operator_observation'
+]);
+export type ClaimBasis = z.infer<typeof ClaimBasisSchema>;
 
 export const ProductInputSchema = z.object({
   brand: z.string().trim().min(1).max(120),
@@ -36,6 +41,7 @@ export const EvidenceClaimSchema = z.object({
   dimensionKey: z.string().min(1).max(80),
   claim: z.string().min(1).max(1000),
   excerpt: z.string().min(1).max(500),
+  claimBasis: ClaimBasisSchema,
   signal: EvidenceSignalSchema,
   strength: z.number().int().min(1).max(5),
   applicability: z.number().min(0).max(1),

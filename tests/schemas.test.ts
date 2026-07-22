@@ -6,7 +6,7 @@ describe('boundary schemas', () => {
   it('rejects an out-of-range evidence strength', () => {
     expect(() => EvidenceExtractionSchema.parse({
       productMatch: 'exact', sourceSummary: 'summary', conflictsOrWarnings: [],
-      claims: [{ dimensionKey: 'traction', claim: 'claim', excerpt: 'excerpt', signal: 'positive', strength: 9, applicability: 1, limitations: '' }]
+      claims: [{ dimensionKey: 'traction', claim: 'claim', excerpt: 'excerpt', claimBasis: 'controlled_test', signal: 'positive', strength: 9, applicability: 1, limitations: '' }]
     })).toThrow();
   });
 

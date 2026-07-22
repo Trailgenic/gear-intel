@@ -63,6 +63,7 @@ The initial migrations define:
 - `product_versions`
 - `sources`
 - `source_snapshots`
+- `evidence_extractions`
 - `evidence_items`
 - `rubric_versions`
 - `assessment_runs`

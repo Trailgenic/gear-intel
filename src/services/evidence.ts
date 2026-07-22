@@ -5,6 +5,7 @@ import { getEvidenceProvider } from '../llm/index.js';
 import { OPENAI_EXTRACTION_PROMPT_VERSION } from '../llm/openai.js';
 import { retrieveSource } from '../retrieval/retrieve.js';
 import { getRubric } from '../rubrics/index.js';
+import { calibrateEvidenceExtraction } from './evidence-calibration.js';
 
 type SourceImport = z.infer<typeof SourceImportSchema>;
 
@@ -33,7 +34,8 @@ export async function importEvidence(input: SourceImport) {
     content: source.text,
     rubric: getRubric(product.categoryKey)
   });
-  if (extraction.data.productMatch === 'mismatch') throw new Error('Source does not match the requested product version');
+  const calibrated = calibrateEvidenceExtraction(input.sourceType, extraction.data);
+  if (calibrated.productMatch === 'mismatch') throw new Error('Source does not match the requested product version');
   const saved = await saveSourceExtraction({
     productVersionId: product.productVersionId,
     url: source.url,
@@ -43,11 +45,12 @@ export async function importEvidence(input: SourceImport) {
     ...(input.publishedAt ? { publishedAt: input.publishedAt } : {}),
     ...(input.evidenceCutoff ? { evidenceCutoff: input.evidenceCutoff } : {}),
     contentHash: source.contentHash,
+    provider: extraction.provider,
     model: extraction.model,
     promptVersion: OPENAI_EXTRACTION_PROMPT_VERSION,
     usage: extraction.usage,
-    extraction: extraction.data,
+    extraction: calibrated,
     reliability: reliabilityByType[input.sourceType]
   });
-  return { ...saved, productMatch: extraction.data.productMatch, claimCount: extraction.data.claims.length, warnings: extraction.data.conflictsOrWarnings };
+  return { ...saved, productMatch: calibrated.productMatch, claimCount: calibrated.claims.length, warnings: calibrated.conflictsOrWarnings };
 }

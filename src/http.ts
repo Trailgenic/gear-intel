@@ -59,6 +59,7 @@ export function handleError(res: VercelResponse, error: unknown): void {
     'Product version not found', 'Source ', 'Only HTTPS', 'IP and private-network',
     'Pending candidate not found', 'Candidate category', 'Every report assessment',
     'Report assessments', 'Assessment not found', 'Unknown rubric dimension',
+    'Claim basis',
     'Unsupported EVIDENCE_MODEL_PROVIDER', 'Discovery produced no source-grounded candidates'
   ];
   if (expectedPrefixes.some((prefix) => message.startsWith(prefix))) {
